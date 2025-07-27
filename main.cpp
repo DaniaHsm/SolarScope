@@ -12,6 +12,9 @@
 #define GLEW_STATIC 1
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
 
 using namespace glm;
 using namespace std;
@@ -237,7 +240,7 @@ struct Camera
 Camera setupCamera()
 {
     Camera camera;
-    camera.position = vec3(0.6f, 1.0f, 10.0f);
+    camera.position = vec3(0.0f, 2.0f, 5.0f);
     camera.lookAt = vec3(0.0f, 0.0f, -1.0f);
     camera.up = vec3(0.0f, 1.0f, 0.0f);
     camera.speed = 3.0f;
@@ -466,10 +469,15 @@ GLuint loadTexture(const char *path)
 {
     GLuint textureID;
     glGenTextures(1, &textureID);
+    
+    std::cout << "Loading texture from path: " << path << std::endl;
+    
     int width, height, nrChannels;
     unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
     if (data)
     {
+        std::cout << "Texture loaded successfully: " << width << "x" << height << " channels: " << nrChannels << std::endl;
+        
         GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
         glBindTexture(GL_TEXTURE_2D, textureID);
         glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
@@ -478,12 +486,21 @@ GLuint loadTexture(const char *path)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        
+        // Check for OpenGL errors
+        GLenum err;
+        while ((err = glGetError()) != GL_NO_ERROR) {
+            std::cerr << "OpenGL error in loadTexture: " << err << std::endl;
+        }
+        
         stbi_image_free(data);
     }
     else
     {
         std::cerr << "Failed to load texture: " << path << std::endl;
+        std::cerr << "STB Error: " << stbi_failure_reason() << std::endl;
         stbi_image_free(data);
+        return 0;  // Return 0 to indicate failure
     }
     return textureID;
 }
@@ -771,6 +788,201 @@ void updateCameraPosition(Camera &camera, GLFWwindow *window, float dt)
     }
 }
 
+struct Mesh
+{
+    std::vector<vec3> vertices;
+    std::vector<vec3> normals;
+    std::vector<vec2> texCoords;
+    std::vector<unsigned int> indices;
+    GLuint VAO;
+    GLuint texture;
+
+    void setupMesh()
+    {
+        GLuint VBO, normalVBO, texVBO, EBO;
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+        glGenBuffers(1, &normalVBO);
+        glGenBuffers(1, &texVBO);
+        glGenBuffers(1, &EBO);
+
+        glBindVertexArray(VAO);
+
+        // Vertex positions
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+        // Normals
+        if (!normals.empty()) {
+            glBindBuffer(GL_ARRAY_BUFFER, normalVBO);
+            glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(vec3), &normals[0], GL_STATIC_DRAW);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+        }
+
+        // Texture coordinates
+        if (!texCoords.empty()) {
+            glBindBuffer(GL_ARRAY_BUFFER, texVBO);
+            glBufferData(GL_ARRAY_BUFFER, texCoords.size() * sizeof(vec2), &texCoords[0], GL_STATIC_DRAW);
+            glEnableVertexAttribArray(2);
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+        }
+
+        // Indices
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+        glBindVertexArray(0);
+    }
+};
+
+struct Model
+{
+    std::vector<Mesh> meshes;
+
+    void Draw(GLuint shader)
+    {
+        for (const auto &mesh : meshes)
+        {
+            // Bind texture
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, mesh.texture);
+            GLint texLocation = glGetUniformLocation(shader, "texture1");
+            if (texLocation == -1) {
+                std::cerr << "Warning: Uniform 'texture1' not found in shader" << std::endl;
+            }
+            glUniform1i(texLocation, 0);
+
+            // Draw mesh
+            glBindVertexArray(mesh.VAO);
+            if (mesh.indices.empty()) {
+                std::cerr << "Warning: Mesh has no indices" << std::endl;
+            } else {
+                glDrawElements(GL_TRIANGLES, mesh.indices.size(), GL_UNSIGNED_INT, 0);
+            }
+            glBindVertexArray(0);
+            
+            // Check for OpenGL errors
+            GLenum err;
+            while ((err = glGetError()) != GL_NO_ERROR) {
+                std::cerr << "OpenGL error in Draw: " << err << std::endl;
+            }
+        }
+    }
+};
+
+void processNode(Model &model, aiNode *node, const aiScene *scene) {
+    // Process all meshes in this node
+    for (unsigned int i = 0; i < node->mNumMeshes; i++) {
+        aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
+        if (!mesh) {
+            std::cerr << "Warning: Null mesh encountered" << std::endl;
+            continue;
+        }
+
+        std::cout << "Processing mesh with " << mesh->mNumVertices << " vertices" << std::endl;
+
+        Mesh newMesh;
+        std::cout << "Processing mesh with " << mesh->mNumVertices << " vertices" << std::endl;
+        
+        // Load material/texture first
+        if (mesh->mMaterialIndex >= 0) {
+            aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+            if (material) {
+                aiString texturePath;
+                if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
+                    std::string fullPath = std::string("models/rubber_duck/textures/material_baseColor.jpeg");
+                    std::cout << "Loading texture from: " << fullPath << std::endl;
+                    newMesh.texture = loadTexture(fullPath.c_str());
+                    if (newMesh.texture == 0) {
+                        std::cerr << "Failed to load texture!" << std::endl;
+                    } else {
+                        std::cout << "Texture loaded successfully with ID: " << newMesh.texture << std::endl;
+                    }
+                }
+            }
+        }
+
+        // Process vertices
+        for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
+            newMesh.vertices.push_back(vec3(
+                mesh->mVertices[i].x,
+                mesh->mVertices[i].y,
+                mesh->mVertices[i].z
+            ));
+
+            if (mesh->HasNormals()) {
+                newMesh.normals.push_back(vec3(
+                    mesh->mNormals[i].x,
+                    mesh->mNormals[i].y,
+                    mesh->mNormals[i].z
+                ));
+            }
+
+            if (mesh->mTextureCoords[0]) {
+                newMesh.texCoords.push_back(vec2(
+                    mesh->mTextureCoords[0][i].x,
+                    mesh->mTextureCoords[0][i].y
+                ));
+            } else {
+                newMesh.texCoords.push_back(vec2(0.0f, 0.0f));
+            }
+        }
+
+        // Process indices
+        for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+            aiFace face = mesh->mFaces[i];
+            for (unsigned int j = 0; j < face.mNumIndices; j++) {
+                newMesh.indices.push_back(face.mIndices[j]);
+            }
+        }
+
+        if (!newMesh.vertices.empty() && !newMesh.indices.empty()) {
+            newMesh.setupMesh();
+            model.meshes.push_back(newMesh);
+            std::cout << "Added mesh with " << newMesh.vertices.size() << " vertices and " 
+                     << newMesh.indices.size() << " indices" << std::endl;
+        }
+    }
+
+    // Recursively process child nodes
+    for (unsigned int i = 0; i < node->mNumChildren; i++) {
+        processNode(model, node->mChildren[i], scene);
+    }
+}
+
+Model loadModel(const char *path)
+{
+    Model model;
+    Assimp::Importer importer;
+    std::cout << "Attempting to load model from: " << path << std::endl;
+    
+    const aiScene *scene = importer.ReadFile(path, 
+        aiProcess_Triangulate | 
+        aiProcess_GenNormals | 
+        aiProcess_FlipUVs |
+        aiProcess_CalcTangentSpace |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_ValidateDataStructure |
+        aiProcess_PreTransformVertices);
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+        std::cerr << "ERROR::ASSIMP::" << importer.GetErrorString() << std::endl;
+        return model;
+    }
+
+    std::cout << "Model loaded successfully. Number of meshes: " << scene->mNumMeshes << std::endl;
+    std::cout << "Number of materials: " << scene->mNumMaterials << std::endl;
+    std::cout << "Number of children in root node: " << scene->mRootNode->mNumChildren << std::endl;
+
+    // Process all nodes recursively starting from the root
+    processNode(model, scene->mRootNode, scene);
+
+    return model;
+}
+
 int main(int argc, char *argv[])
 {
     // Initialize GLFW and OpenGL
@@ -819,6 +1031,7 @@ int main(int argc, char *argv[])
 
     // Create scene objects
     int vao = createVertexBufferObject();
+    Model duckModel = loadModel("models/rubber_duck/scene.gltf");
 
     // Setup celestial bodies
     CelestialBody sun = createCelestialBody(
@@ -863,6 +1076,10 @@ int main(int argc, char *argv[])
     float orbRadius = 2.0f;
     float orbHeight = 1.0f;
     float orbSize = 0.2f;
+
+    // Set up texture uniform for the base shader
+    glUseProgram(shaders.base);
+    glUniform1i(glGetUniformLocation(shaders.base, "texture1"), 0);
 
     // Initialize timing and input state
     float lastFrameTime = glfwGetTime();
@@ -918,7 +1135,7 @@ int main(int argc, char *argv[])
         
 		glBindVertexArray(vao);
 
-        // Update and render spinning cube (third-person view only)
+        // Update and render spinning duck (third-person view only)
         spinningCubeAngle += 180.0f * dt;
         if (!camera.firstPerson)
         {
@@ -928,18 +1145,23 @@ int main(int argc, char *argv[])
 			);
 
             mat4 spinningCubeWorldMatrix = translate(
-				mat4(1.0f), 
-				camera.position
-			) 
-			* rotate(
-				mat4(1.0f), 
-				radians(spinningCubeAngle), 
-				vec3(0.0f, 1.0f, 0.0f)
-			) 
-			* scale(
-				mat4(1.0f), 
-				vec3(0.1f, 0.1f, 0.1f)
-			);
+                mat4(1.0f), 
+                camera.position + vec3(0.0f, -0.2f, 0.0f)
+            ) 
+            * rotate(
+                mat4(1.0f), 
+                radians(spinningCubeAngle), 
+                vec3(0.0f, 1.0f, 0.0f)
+            )
+            * rotate(
+                mat4(1.0f),
+                radians(1.0f),
+                vec3(0.0f, 0.0f, 1.0f)
+            )
+            * scale(
+                mat4(1.0f), 
+                vec3(0.0006f, 0.0006f, 0.0006f)
+            );
 
             glUniformMatrix4fv(
 				worldMatrixLocation, 
@@ -947,8 +1169,13 @@ int main(int argc, char *argv[])
 				GL_FALSE, 
 				&spinningCubeWorldMatrix[0][0]
 			);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-        }
+            
+            if (!duckModel.meshes.empty()) {
+                glDisable(GL_CULL_FACE);
+                duckModel.Draw(shaders.base);
+                glEnable(GL_CULL_FACE);
+            }
+		}
 
         // Update celestial bodies
         orbAngle += 20.0f * animationDt;
