@@ -669,13 +669,15 @@ void renderCelestialBody(
     const mat4 &viewMatrix, 
     const mat4 &projectionMatrix, 
     const vec3 &lightPos, 
-    const vec3 &viewPos)
+    const vec3 &viewPos,
+    bool isSun = false)
 {
 	glDisable(GL_CULL_FACE);
     glUseProgram(shader);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, body.texture);
     glUniform1i(glGetUniformLocation(shader, "texture1"), 0);
+    glUniform1i(glGetUniformLocation(shader, "isSun"), isSun ? 1 : 0);
 
     mat4 worldMatrix = getCelestialBodyMatrix(body);
 
@@ -961,7 +963,8 @@ int main(int argc, char *argv[])
 			viewMatrix, 
 			projectionMatrix, 
 			sun.position, 
-			camera.position
+			camera.position,
+			true  // This is the sun
 		);
 
         renderCelestialBody(earth, 
@@ -969,7 +972,8 @@ int main(int argc, char *argv[])
 			viewMatrix, 
 			projectionMatrix, 
 			sun.position, 
-			camera.position
+			camera.position,
+			false  // Not the sun
 		);
 
         renderCelestialBody(moon, 
@@ -977,7 +981,8 @@ int main(int argc, char *argv[])
 			viewMatrix, 
 			projectionMatrix, 
 			sun.position, 
-			camera.position
+			camera.position,
+			false  // Not the sun
 		);
 
         // Swap buffers and poll events
