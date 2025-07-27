@@ -656,7 +656,12 @@ mat4 getCelestialBodyMatrix(const CelestialBody &body)
 		mat4(1.0f), 
 		radians(body.rotationAngle), 
 		vec3(0.0f, 1.0f, 0.0f)
-	) 
+	)
+    * rotate(
+        mat4(1.0f),
+        radians(180.0f),
+        vec3(1.0f, 0.0f, 0.0f)
+    )
 	* scale(
 		mat4(1.0f), 
 		body.scale
