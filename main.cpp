@@ -671,6 +671,7 @@ void renderCelestialBody(
     const vec3 &lightPos, 
     const vec3 &viewPos)
 {
+	glDisable(GL_CULL_FACE);
     glUseProgram(shader);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, body.texture);
@@ -716,6 +717,7 @@ void renderCelestialBody(
 
     glBindVertexArray(body.vao);
     glDrawElements(GL_TRIANGLES, body.indexCount, GL_UNSIGNED_INT, 0);
+	glEnable(GL_CULL_FACE);
 }
 
 void updateCameraAngles(Camera &camera, float dx, float dy, float dt)
