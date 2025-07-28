@@ -1,7 +1,7 @@
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
+#include <GL/glew.h>		// OpenGL functions
+#include <GLFW/glfw3.h>		// GLFW for window management
 #include <fstream>
-#include <glm/common.hpp>
+#include <glm/common.hpp>	// Math functions
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
@@ -12,13 +12,14 @@
 #define GLEW_STATIC 1
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-#include <assimp/Importer.hpp>
+#include <assimp/Importer.hpp>	// 3D model management
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
 using namespace glm;
 using namespace std;
 
+// Sets up GLFW window with OpenGL 3.2 core profile and mouse capture
 GLFWwindow *initializeGLFW()
 {
     if (!glfwInit())
@@ -53,6 +54,7 @@ GLFWwindow *initializeGLFW()
     return window;
 }
 
+// Initializes GLEW for OpenGL function loading
 bool initializeOpenGL()
 {
     glewExperimental = true;
@@ -64,6 +66,10 @@ bool initializeOpenGL()
     return true;
 }
 
+// Container for different shader programs used in the scene
+// - base: For 3D model rendering (duck)
+// - skybox: For space background rendering
+// - orb: For celestial body rendering with special lighting (planets)
 struct ShaderPrograms
 {
     int base;
@@ -71,6 +77,7 @@ struct ShaderPrograms
     unsigned int orb;
 };
 
+// Helper function to read .glsl files
 std::string readFile(const char *filePath)
 {
     std::ifstream file(filePath);
@@ -84,6 +91,7 @@ std::string readFile(const char *filePath)
     return buffer.str();
 }
 
+// Shader source loaders
 std::string getVertexShaderSource()
 {
     return readFile("shaders/shader.vert.glsl");
@@ -141,11 +149,13 @@ int compileVertexAndFragShaders()
     return shaderProgram;
 }
 
+// Loads vertex shader specific to skybox rendering
 std::string getSkyboxVertexShaderSource()
 {
     return readFile("shaders/skybox_vertex.glsl");
 }
 
+// Loads fragment shader specific to skybox rendering
 std::string getSkyboxFragmentShaderSource()
 {
     return readFile("shaders/skybox_fragment.glsl");
@@ -176,16 +186,20 @@ unsigned int compileSkyboxShaderProgram()
     return program;
 }
 
+// Loads vertex shader for celestial bodies (sun, planets)
 std::string getTexturedSphereVertexShaderSource()
 {
     return readFile("shaders/textured_sphere.vert.glsl");
 }
 
+// Loads fragment shader for celestial bodies with texture support
 std::string getTexturedSphereFragmentShaderSource()
 {
     return readFile("shaders/textured_sphere.frag.glsl");
 }
 
+// Compiles and links the shader program for celestial bodies
+// Handles both vertex and fragment shaders for textured spheres
 GLuint compileTexturedSphereShader()
 {
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
@@ -225,18 +239,26 @@ ShaderPrograms setupShaderPrograms()
     return shaders;
 }
 
+// Manages camera movement and view:
+// - Supports both first-person and third-person views
+// - Handles position, orientation, and movement speeds
 struct Camera
 {
-    vec3 position;
-    vec3 lookAt;
-    vec3 up;
-    float speed;
-    float fastSpeed;
-    float horizontalAngle;
-    float verticalAngle;
-    bool firstPerson;
+    vec3 position;       	// Camera position in 3D space
+    vec3 lookAt;         	// Direction the camera is facing
+    vec3 up;             	// Up vector for camera orientation
+    float speed;         	// Normal movement speed
+    float fastSpeed;    	// Sprint movement speed
+    float horizontalAngle;  // Left/right rotation
+    float verticalAngle;    // Up/down rotation
+    bool firstPerson;   	// Toggle between first/third person
 };
 
+// Initializes camera with default settings:
+// - Starting position above and behind origin
+// - Looking forward with standard up vector
+// - Default movement and rotation speeds
+// - First-person view mode enabled
 Camera setupCamera()
 {
     Camera camera;
@@ -251,6 +273,10 @@ Camera setupCamera()
     return camera;
 }
 
+// Updates the view matrix based on camera mode and position
+// Handles both first-person and third-person perspectives:
+// - First-person: Direct view from camera position
+// - Third-person: Orbital view around target with fixed radius
 mat4 updateViewMatrix(const Camera &camera)
 {
     if (camera.firstPerson)
@@ -259,6 +285,7 @@ mat4 updateViewMatrix(const Camera &camera)
     }
     else
     {
+        // Distance from target in third-person
         float radius = 1.5f;
         glm::vec3 position = camera.position - radius * camera.lookAt;
         return lookAt(position, position + camera.lookAt, camera.up);
@@ -351,27 +378,36 @@ int createVertexBufferObject()
     return vertexBufferObject;
 }
 
+// Represents a celestial body (sun, planet, or moon):
+// - Handles rendering properties (VAO, texture, indices)
+// - Controls position, scale, and rotation
+// - Manages orbital movement parameters
 struct CelestialBody
 {
-    GLuint vao;
-    GLuint texture;
-    unsigned int indexCount;
-    vec3 position;
-    vec3 scale;
-    float rotationAngle;
-    float rotationSpeed;
-    float orbitRadius;
-    float orbitSpeed;
+    GLuint vao;          		// Vertex Array Object for the sphere
+    GLuint texture;      		// Body's surface texture
+    unsigned int indexCount;  	// Number of indices for rendering
+    vec3 position;       		// Current position in space
+    vec3 scale;          		// Size of the celestial body
+    float rotationAngle; 		// Current rotation around its axis
+    float rotationSpeed; 		// Speed of rotation around its axis
+    float orbitRadius;   		// Distance from the center of orbit
+    float orbitSpeed;    		// Speed of orbital movement
 };
 
+// Generates vertices and texture coordinates for a UV sphere
+// Creates a sphere by dividing it into rings and sectors:
+// - rings: vertical divisions from pole to pole
+// - sectors: horizontal divisions around the sphere
+// - Generates proper UV mapping for textures
 void generateSphereVerticesAndUVs(
 	unsigned int rings,
     unsigned int sectors,
     std::vector<vec3> &vertices,
 	std::vector<vec2> &uvs)
 {
-    float const R = 1.0f / float(rings - 1);
-    float const S = 1.0f / float(sectors - 1);
+    float const R = 1.0f / float(rings - 1);    // Ring step
+    float const S = 1.0f / float(sectors - 1);  // Sector step
 
     for (unsigned int r = 0; r < rings; ++r)
     {
@@ -390,6 +426,10 @@ void generateSphereVerticesAndUVs(
     }
 }
 
+// Generates triangle indices for sphere mesh
+// Creates triangles between adjacent rings and sectors:
+// - Builds triangles in counter-clockwise order
+// - Ensures proper face winding for correct rendering
 void generateSphereIndices(unsigned int rings, 
 	unsigned int sectors, 
 	std::vector<unsigned int> &indices)
@@ -414,6 +454,11 @@ void generateSphereIndices(unsigned int rings,
     }
 }
 
+// Sets up OpenGL buffers for sphere rendering
+// Creates and configures:
+// - Vertex Array Object (VAO)
+// - Vertex Buffer Objects (VBOs) for positions and UVs
+// - Element Buffer Object (EBO) for indices
 GLuint setupSphereBuffers(
 	const std::vector<vec3> &vertices,
     const std::vector<vec2> &uvs,
@@ -526,11 +571,15 @@ CelestialBody createCelestialBody(
     return body;
 }
 
+// Manages the space background environment:
+// - Creates a skybox cube with 6 textured faces
+// - Handles cubemap texture loading
+// - Renders the environment around the scene
 struct Skybox
 {
-    GLuint vao;
-    GLuint vbo;
-    GLuint texture;
+    GLuint vao;     // Vertex Array Object for the cube
+    GLuint vbo;     // Vertex Buffer Object
+    GLuint texture; // Texture ID
 };
 
 unsigned int loadCubemap(std::vector<std::string> faces)
@@ -694,6 +743,7 @@ void renderCelestialBody(
     const vec3 &viewPos,
     bool isSun = false)
 {
+	// Disable culling for celestial bodies to ensure correct appearance
 	glDisable(GL_CULL_FACE);
     glUseProgram(shader);
     glActiveTexture(GL_TEXTURE0);
@@ -741,6 +791,8 @@ void renderCelestialBody(
 
     glBindVertexArray(body.vao);
     glDrawElements(GL_TRIANGLES, body.indexCount, GL_UNSIGNED_INT, 0);
+	
+	// Re-enable culling after rendering celestial bodies
 	glEnable(GL_CULL_FACE);
 }
 
@@ -793,14 +845,18 @@ void updateCameraPosition(Camera &camera, GLFWwindow *window, float dt)
     }
 }
 
+// Represents a single mesh component of a 3D model:
+// - Stores geometry data (vertices, normals, UVs)
+// - Manages OpenGL buffers and attributes
+// - Handles texture mapping
 struct Mesh
 {
-    std::vector<vec3> vertices;
-    std::vector<vec3> normals;
-    std::vector<vec2> texCoords;
-    std::vector<unsigned int> indices;
-    GLuint VAO;
-    GLuint texture;
+    std::vector<vec3> vertices;    		// 3D vertex positions
+    std::vector<vec3> normals;     		// Vertex normals for lighting
+    std::vector<vec2> texCoords;   		// Texture coordinates
+    std::vector<unsigned int> indices;  // Vertex indices for drawing
+    GLuint VAO;                    		// Vertex Array Object
+    GLuint texture;                		// Diffuse texture
 
     void setupMesh()
     {
@@ -843,6 +899,10 @@ struct Mesh
     }
 };
 
+// Container for complete 3D model (duck):
+// - Manages collection of meshes
+// - Handles model loading via Assimp
+// - Controls model rendering with error checking
 struct Model
 {
     std::vector<Mesh> meshes;
@@ -958,6 +1018,11 @@ void processNode(Model &model, aiNode *node, const aiScene *scene) {
     }
 }
 
+// Loads a 3D model from file using Assimp
+// - Supports multiple mesh formats (GLTF, OBJ, etc.)
+// - Processes the model for OpenGL rendering
+// - Handles textures, normals, and vertex data
+// - Returns a complete model ready for rendering
 Model loadModel(const char *path)
 {
     Model model;
