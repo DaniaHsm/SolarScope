@@ -581,6 +581,174 @@ CelestialBody createCelestialBody(
     return body;
 }
 
+// Add these structures right after your CelestialBody struct
+
+// Represents a point in the comet's trail
+struct TrailPoint {
+    vec3 position;
+    float age;        // How old this trail point is (for fading)
+    float brightness; // Brightness based on distance from sun
+};
+
+// Comet with elliptical orbit and particle trail
+struct Comet {
+    CelestialBody body;           // Reuse existing celestial body for the head
+    std::vector<TrailPoint> trail; // Trail points
+    float orbitAngle;             // Current angle in elliptical orbit
+    float eccentricity;           // How elliptical the orbit is (0 = circle, 0.9 = very elliptical)
+    float semiMajorAxis;          // Size of the orbit
+    vec3 orbitCenter;             // Center point of orbit
+    GLuint trailVAO;              // VAO for trail rendering
+    GLuint trailVBO;              // VBO for trail vertices
+    int maxTrailPoints;           // Maximum trail length
+    float lastTrailUpdate;        // Time tracking for trail updates
+    
+    void updateTrail(float currentTime, const vec3& sunPosition) {
+        // Add new trail point every 0.1 seconds
+        if (currentTime - lastTrailUpdate > 0.1f) {
+            TrailPoint newPoint;
+            newPoint.position = body.position;
+            newPoint.age = 0.0f;
+            
+            // Brightness based on distance from sun (closer = brighter trail)
+            float distanceFromSun = length(body.position - sunPosition);
+            newPoint.brightness = 1.0f / (1.0f + distanceFromSun * 0.1f);
+            
+            trail.insert(trail.begin(), newPoint);
+            
+            // Remove old trail points
+            if (trail.size() > maxTrailPoints) {
+                trail.pop_back();
+            }
+            
+            lastTrailUpdate = currentTime;
+        }
+        
+        // Age all trail points
+        for (auto& point : trail) {
+            point.age += 0.016f; // Approximate 60fps
+        }
+        
+        updateTrailVBO();
+    }
+    
+    void updateTrailVBO() {
+        if (trail.empty()) return;
+        
+        std::vector<vec3> vertices;
+        std::vector<vec3> colors;
+        
+        // Create line segments for the trail
+        for (size_t i = 0; i < trail.size(); ++i) {
+            vertices.push_back(trail[i].position);
+            
+            // Color fades from bright blue/white to dark blue based on age
+            float fade = 1.0f - (trail[i].age / 10.0f); // Fade over 10 seconds
+            fade = std::max(0.0f, fade);
+            
+            // Comet tail color - blue/white mix
+            vec3 color = vec3(0.7f + 0.3f * trail[i].brightness, 
+                             0.8f + 0.2f * trail[i].brightness, 
+                             1.0f) * fade;
+            colors.push_back(color);
+        }
+        
+        glBindVertexArray(trailVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, trailVBO);
+        glBufferData(GL_ARRAY_BUFFER, 
+                    vertices.size() * sizeof(vec3) + colors.size() * sizeof(vec3), 
+                    nullptr, GL_DYNAMIC_DRAW);
+        
+        // Upload vertices
+        glBufferSubData(GL_ARRAY_BUFFER, 0, 
+                       vertices.size() * sizeof(vec3), &vertices[0]);
+        
+        // Upload colors
+        glBufferSubData(GL_ARRAY_BUFFER, 
+                       vertices.size() * sizeof(vec3),
+                       colors.size() * sizeof(vec3), &colors[0]);
+        
+        // Set up vertex attributes
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+        glEnableVertexAttribArray(0);
+        
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 
+                             (void*)(vertices.size() * sizeof(vec3)));
+        glEnableVertexAttribArray(1);
+    }
+};
+
+// Function to create a comet
+Comet createComet(const char* texturePath, const vec3& orbitCenter, 
+                  float semiMajorAxis, float eccentricity) {
+    Comet comet;
+    
+    // Create the comet head using existing celestial body system
+    comet.body = createCelestialBody(texturePath, 0.05f, 0.0f, 0.0f, 10.0f);
+    
+    // Set up orbital parameters
+    comet.orbitCenter = orbitCenter;
+    comet.semiMajorAxis = semiMajorAxis;
+    comet.eccentricity = eccentricity;
+    comet.orbitAngle = 0.0f;
+    comet.maxTrailPoints = 150; // Long, visible trail
+    comet.lastTrailUpdate = 0.0f;
+    
+    // Set up trail rendering
+    glGenVertexArrays(1, &comet.trailVAO);
+    glGenBuffers(1, &comet.trailVBO);
+    
+    return comet;
+}
+
+// Function to update comet position in elliptical orbit
+void updateComet(Comet& comet, float dt, const vec3& sunPosition) {
+    // Update orbital position
+    comet.orbitAngle += 0.5f * dt; // Slow orbital speed
+    
+    // Calculate elliptical orbit position
+    float a = comet.semiMajorAxis; // Semi-major axis
+    float e = comet.eccentricity;  // Eccentricity
+    
+    // Elliptical orbit math
+    float r = a * (1.0f - e * e) / (1.0f + e * cos(comet.orbitAngle));
+    float x = r * cos(comet.orbitAngle);
+    float z = r * sin(comet.orbitAngle);
+    
+    comet.body.position = comet.orbitCenter + vec3(x, 0.0f, z);
+    
+    // Update rotation
+    comet.body.rotationAngle += comet.body.rotationSpeed * dt;
+    
+    // Update trail
+    comet.updateTrail(glfwGetTime(), sunPosition);
+}
+
+// Function to render comet trail
+void renderCometTrail(const Comet& comet, GLuint shader, 
+                     const mat4& viewMatrix, const mat4& projectionMatrix) {
+    if (comet.trail.size() < 2) return;
+    
+    glUseProgram(shader);
+    glBindVertexArray(comet.trailVAO);
+    
+    // Set matrices
+    mat4 worldMatrix = mat4(1.0f); // Identity - trail points are in world space
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
+    
+    // Enable blending for trail transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Draw trail as line strip
+    glDrawArrays(GL_LINE_STRIP, 0, comet.trail.size());
+    
+    glDisable(GL_BLEND);
+}
+
+
 // Function to create Saturn's rings
 PlanetRing createSaturnRings()
 {
@@ -856,10 +1024,10 @@ void renderCelestialBody(
 	);
 
     glUniform3fv(
-		glGetUniformLocation(shader, "viewPos"), 
-		1, 
-		&fixedViewPos[0]
-	);
+    glGetUniformLocation(shader, "viewPos"), 
+    1, 
+    &viewPos[0]  // Use the actual camera position passed to the function
+    );
 
     glBindVertexArray(body.vao);
     glDrawElements(GL_TRIANGLES, body.indexCount, GL_UNSIGNED_INT, 0);
@@ -1306,6 +1474,21 @@ CelestialBody neptune = createCelestialBody(
     18.0f      // Normal rotation speed
 );
 
+Comet halleysComet = createComet(
+    "textures/comet.jpg",
+    vec3(0.0f, 0.0f, -20.0f),
+    45.0f,
+    0.85f
+);
+
+Comet comet2 = createComet(
+    "textures/comet.jpg",
+    vec3(0.0f, 0.0f, -20.0f),
+    25.0f,
+    0.7f
+);
+comet2.orbitAngle = 180.0f; // Start on opposite side
+
 
 // Create Saturn's rings
 PlanetRing saturnRings = createSaturnRings();
@@ -1444,14 +1627,20 @@ PlanetRing saturnRings = createSaturnRings();
         updateCelestialBody(neptune, sun.position, orbAngle, animationDt);
         updateCelestialBody(moon, earth.position, orbAngle, animationDt);
 
+        // Update comets
+        updateComet(halleysComet, animationDt, sun.position);
+        updateComet(comet2, animationDt, sun.position);
+
         // Collect all planet positions and radii for shadow calculations
         vector<vec3> planetPositions = {
             mercury.position, venus.position, earth.position, mars.position,
-            jupiter.position, saturn.position, uranus.position, neptune.position
+            jupiter.position, saturn.position, uranus.position, neptune.position,
+            halleysComet.body.position, comet2.body.position  // Add comets
         };
         vector<float> planetRadii = {
             mercury.scale.x, venus.scale.x, earth.scale.x, mars.scale.x,
-            jupiter.scale.x, saturn.scale.x, uranus.scale.x, neptune.scale.x
+            jupiter.scale.x, saturn.scale.x, uranus.scale.x, neptune.scale.x,
+            halleysComet.body.scale.x, comet2.body.scale.x  // Add comet radii
         };
 
         // Render all celestial bodies in order from sun outward
@@ -1467,6 +1656,17 @@ PlanetRing saturnRings = createSaturnRings();
         renderCelestialBody(uranus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
         renderCelestialBody(neptune, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
         renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+
+
+        // Render comet trails first (so they appear behind comet heads)
+        renderCometTrail(halleysComet, shaders.base, viewMatrix, projectionMatrix);
+        renderCometTrail(comet2, shaders.base, viewMatrix, projectionMatrix);
+
+        // Render comet heads
+        renderCelestialBody(halleysComet.body, shaders.orb, viewMatrix, projectionMatrix, 
+                        sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(comet2.body, shaders.orb, viewMatrix, projectionMatrix, 
+                        sun.position, camera.position, false, planetPositions, planetRadii);
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);
