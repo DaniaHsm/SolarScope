@@ -1635,12 +1635,12 @@ PlanetRing saturnRings = createSaturnRings();
         vector<vec3> planetPositions = {
             mercury.position, venus.position, earth.position, mars.position,
             jupiter.position, saturn.position, uranus.position, neptune.position,
-            halleysComet.body.position, comet2.body.position  // Add comets
+            moon.position  // Add moon for shadow calculations
         };
         vector<float> planetRadii = {
             mercury.scale.x, venus.scale.x, earth.scale.x, mars.scale.x,
             jupiter.scale.x, saturn.scale.x, uranus.scale.x, neptune.scale.x,
-            halleysComet.body.scale.x, comet2.body.scale.x  // Add comet radii
+            moon.scale.x  // Add moon radius for shadow calculations
         };
 
         // Render all celestial bodies in order from sun outward
