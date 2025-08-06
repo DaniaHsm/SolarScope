@@ -292,92 +292,6 @@ mat4 updateViewMatrix(const Camera &camera)
     }
 }
 
-int createVertexBufferObject()
-{
-    vec3 vertexArray[] = {
-		vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, -0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
-
-        vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(-0.5f, 0.5f, -0.5f),  vec3(0.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, 0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f),
-
-        vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f),
-
-        vec3(-0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, 0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, -0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f)
-	};
-
-    GLuint vertexArrayObject;
-    glGenVertexArrays(1, &vertexArrayObject);
-    glBindVertexArray(vertexArrayObject);
-
-    GLuint vertexBufferObject;
-    glGenBuffers(1, &vertexBufferObject);
-    glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertexArray), vertexArray, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(
-		0, 
-		3, 
-		GL_FLOAT, 
-		GL_FALSE, 
-		2 * sizeof(vec3), 
-		(void *)0
-	);
-    glEnableVertexAttribArray(0);
-
-
-    glVertexAttribPointer(
-		1, 
-		3, 
-		GL_FLOAT, 
-		GL_FALSE, 
-		2 * sizeof(vec3), 
-		(void *)sizeof(vec3)
-	);
-    glEnableVertexAttribArray(1);
-
-
-    return vertexBufferObject;
-}
-
 // Represents a celestial body (sun, planet, or moon):
 // - Handles rendering properties (VAO, texture, indices)
 // - Controls position, scale, and rotation
@@ -393,6 +307,40 @@ struct CelestialBody
     float rotationSpeed; 		// Speed of rotation around its axis
     float orbitRadius;   		// Distance from the center of orbit
     float orbitSpeed;    		// Speed of orbital movement
+};
+
+// Planet Selection System
+struct PlanetSelector {
+    vector<CelestialBody*> celestialBodies;
+    vector<string> celestialNames;
+    int selectedIndex;
+    bool was3Pressed;
+    
+    PlanetSelector() : selectedIndex(0), was3Pressed(false) {}
+    
+    void addCelestialBody(CelestialBody* body, const string& name) {
+        celestialBodies.push_back(body);
+        celestialNames.push_back(name);
+    }
+    
+    void nextSelection() {
+        selectedIndex = (selectedIndex + 1) % celestialBodies.size();
+        cout << "Selected: " << celestialNames[selectedIndex] << endl;
+    }
+    
+    CelestialBody* getSelectedBody() {
+        if (selectedIndex < celestialBodies.size()) {
+            return celestialBodies[selectedIndex];
+        }
+        return nullptr;
+    }
+    
+    string getSelectedName() {
+        if (selectedIndex < celestialNames.size()) {
+            return celestialNames[selectedIndex];
+        }
+        return "Unknown";
+    }
 };
 
 // Black hole structure with proper functionality
@@ -962,6 +910,92 @@ void renderSkybox(
     glDepthFunc(GL_LESS);
 }
 
+int createVertexBufferObject()
+{
+    vec3 vertexArray[] = {
+		vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f), 
+		vec3(-0.5f, -0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
+		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
+
+        vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f), 
+		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
+		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f),
+
+        vec3(0.5f, 0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
+		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
+		vec3(-0.5f, 0.5f, -0.5f),  vec3(0.0f, 0.0f, 1.0f),
+
+        vec3(0.5f, 0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
+		vec3(0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
+		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f),
+
+        vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
+		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f), 
+		vec3(0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f),
+
+        vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
+		vec3(-0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
+		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f),
+
+        vec3(-0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
+		vec3(-0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
+		vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f),
+
+        vec3(0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
+		vec3(-0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
+		vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f),
+
+        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f), 
+		vec3(0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f), 
+		vec3(0.5f, 0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f),
+
+        vec3(0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f), 
+		vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f), 
+		vec3(0.5f, -0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f),
+
+        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f), 
+		vec3(0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f), 
+		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f),
+
+        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f), 
+		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f), 
+		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f)
+	};
+
+    GLuint vertexArrayObject;
+    glGenVertexArrays(1, &vertexArrayObject);
+    glBindVertexArray(vertexArrayObject);
+
+    GLuint vertexBufferObject;
+    glGenBuffers(1, &vertexBufferObject);
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertexArray), vertexArray, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+		0, 
+		3, 
+		GL_FLOAT, 
+		GL_FALSE, 
+		2 * sizeof(vec3), 
+		(void *)0
+	);
+    glEnableVertexAttribArray(0);
+
+
+    glVertexAttribPointer(
+		1, 
+		3, 
+		GL_FLOAT, 
+		GL_FALSE, 
+		2 * sizeof(vec3), 
+		(void *)sizeof(vec3)
+	);
+    glEnableVertexAttribArray(1);
+
+
+    return vertexBufferObject;
+}
+
 void updateCelestialBody(
 	CelestialBody &body, 
 	const vec3 &centerPosition, 
@@ -1101,6 +1135,57 @@ void renderPlanetRings(const PlanetRing& ring, const CelestialBody& planet,
     
     glEnable(GL_CULL_FACE);
     glDisable(GL_BLEND);
+}
+
+// Camera update function for planet selection mode
+void updateCameraForSelectedPlanet(Camera& camera, CelestialBody* selectedBody, float dt) {
+    if (!selectedBody) return;
+    
+    // Position camera at a good viewing distance from the selected planet
+    float viewingDistance = selectedBody->scale.x * 8.0f; // Adjust multiplier as needed
+    viewingDistance = std::max(3.0f, viewingDistance);// Minimum distance
+
+    
+    // Calculate desired camera position (slightly above and behind the planet)
+    vec3 targetPosition = selectedBody->position + vec3(0.0f, viewingDistance * 0.3f, viewingDistance);
+    
+    // Smooth camera movement (lerp towards target)
+    float lerpSpeed = 2.0f * dt; // Adjust speed as needed
+    camera.position = mix(camera.position, targetPosition, lerpSpeed);
+    
+    // Make camera look at the selected planet
+    vec3 directionToPlanet = normalize(selectedBody->position - camera.position);
+    camera.lookAt = directionToPlanet;
+}
+
+// Add visual selection indicator (simple wireframe sphere around selected planet)
+void renderSelectionIndicator(CelestialBody* selectedBody, GLuint shader, 
+                            const mat4& viewMatrix, const mat4& projectionMatrix) {
+    if (!selectedBody) return;
+    
+    glUseProgram(shader);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
+    glLineWidth(3.0f); // Thick lines
+    
+    // Create a slightly larger sphere around the selected planet
+    float indicatorScale = selectedBody->scale.x * 1.5f;
+    mat4 worldMatrix = translate(mat4(1.0f), selectedBody->position) * 
+                      scale(mat4(1.0f), vec3(indicatorScale));
+    
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
+    
+    // Set a bright color for the selection indicator
+    vec3 selectionColor = vec3(1.0f, 1.0f, 0.0f); // Bright yellow
+    glUniform3fv(glGetUniformLocation(shader, "selectionColor"), 1, &selectionColor[0]);
+    
+    // Render the wireframe sphere (you can use the same VAO as the planet)
+    glBindVertexArray(selectedBody->vao);
+    glDrawElements(GL_TRIANGLES, selectedBody->indexCount, GL_UNSIGNED_INT, 0);
+    
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Back to solid mode
+    glLineWidth(1.0f); // Reset line width
 }
 
 void updateCameraAngles(Camera &camera, float dx, float dy, float dt)
@@ -1504,23 +1589,39 @@ int main(int argc, char *argv[])
         18.0f      // Normal rotation speed
     );
 
-Comet halleysComet = createComet(
-    "textures/comet.jpg",
-    vec3(0.0f, 0.0f, -20.0f),
-    45.0f,
-    0.85f
-);
+    Comet halleysComet = createComet(
+        "textures/comet.jpg",
+        vec3(0.0f, 0.0f, -20.0f),
+        45.0f,
+        0.85f
+    );
 
-Comet comet2 = createComet(
-    "textures/comet.jpg",
-    vec3(0.0f, 0.0f, -20.0f),
-    25.0f,
-    0.7f
-);
-comet2.orbitAngle = 180.0f; // Start on opposite side
+    Comet comet2 = createComet(
+        "textures/comet.jpg",
+        vec3(0.0f, 0.0f, -20.0f),
+        25.0f,
+        0.7f
+    );
+    comet2.orbitAngle = 180.0f; // Start on opposite side
 
     // Create Saturn's rings
     PlanetRing saturnRings = createSaturnRings();
+
+    // Setup planet selector
+    PlanetSelector planetSelector;
+    planetSelector.addCelestialBody(&sun, "Sun");
+    planetSelector.addCelestialBody(&mercury, "Mercury");
+    planetSelector.addCelestialBody(&venus, "Venus");
+    planetSelector.addCelestialBody(&earth, "Earth");
+    planetSelector.addCelestialBody(&moon, "Moon");
+    planetSelector.addCelestialBody(&mars, "Mars");
+    planetSelector.addCelestialBody(&jupiter, "Jupiter");
+    planetSelector.addCelestialBody(&saturn, "Saturn");
+    planetSelector.addCelestialBody(&uranus, "Uranus");
+    planetSelector.addCelestialBody(&neptune, "Neptune");
+
+    // Add planet selection mode flag
+    bool planetSelectionMode = false;
 
     // Create list of all celestial bodies for black hole effect
     vector<CelestialBody*> allBodies = {&sun, &mercury, &venus, &earth, &moon, &mars, &jupiter, &saturn, &uranus, &neptune};
@@ -1621,7 +1722,33 @@ comet2.orbitAngle = 180.0f; // Start on opposite side
             wasSpacePressed = false;
         }
         
-        // FIXED: Move X and R key handling inside the main loop
+        // Handle planet selection with key 3
+        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+            if (!planetSelector.was3Pressed) {
+                if (!planetSelectionMode) {
+                    // Enter planet selection mode
+                    planetSelectionMode = true;
+                    camera.firstPerson = false; // Switch to third person for better planet viewing
+                    cout << "Entered planet selection mode. Selected: " << planetSelector.getSelectedName() << endl;
+                } else {
+                    // Cycle to next planet
+                    planetSelector.nextSelection();
+                }
+                planetSelector.was3Pressed = true;
+            }
+        } else {
+            planetSelector.was3Pressed = false;
+        }
+
+        // Exit planet selection mode with key 4
+        if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+            if (planetSelectionMode) {
+                planetSelectionMode = false;
+                cout << "Exited planet selection mode" << endl;
+            }
+        }
+        
+        // X and R key handling for black hole effect
         // X key to activate black hole
         if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
             if (!wasXPressed && !blackHole.active) {
@@ -1696,6 +1823,12 @@ comet2.orbitAngle = 180.0f; // Start on opposite side
 
         float animationDt = isPaused ? 0.0f : dt;
 
+        // Update camera for planet selection mode
+        if (planetSelectionMode) {
+            CelestialBody* selectedBody = planetSelector.getSelectedBody();
+            updateCameraForSelectedPlanet(camera, selectedBody, dt);
+        }
+
         // Clear buffers
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1723,7 +1856,7 @@ comet2.orbitAngle = 180.0f; // Start on opposite side
 
         // Update and render spinning duck (third-person view only)
         spinningCubeAngle += 180.0f * dt;
-        if (!camera.firstPerson)
+        if (!camera.firstPerson && !planetSelectionMode)
         {
             GLuint worldMatrixLocation = glGetUniformLocation(
                 shaders.base, 
@@ -1880,7 +2013,6 @@ comet2.orbitAngle = 180.0f; // Start on opposite side
             renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
         }
 
-
         // Render comet trails first (so they appear behind comet heads)
         renderCometTrail(halleysComet, shaders.base, viewMatrix, projectionMatrix);
         renderCometTrail(comet2, shaders.base, viewMatrix, projectionMatrix);
@@ -1891,6 +2023,12 @@ comet2.orbitAngle = 180.0f; // Start on opposite side
         renderCelestialBody(comet2.body, shaders.orb, viewMatrix, projectionMatrix, 
                         sun.position, camera.position, false, planetPositions, planetRadii);
 
+        // Render selection indicator if in planet selection mode
+        if (planetSelectionMode) {
+            CelestialBody* selectedBody = planetSelector.getSelectedBody();
+            renderSelectionIndicator(selectedBody, shaders.base, viewMatrix, projectionMatrix);
+        }
+
         // Swap buffers and poll events
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -1900,54 +2038,60 @@ comet2.orbitAngle = 180.0f; // Start on opposite side
         {
             glfwSetWindowShouldClose(window, true);
         }
-        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-        {
-            camera.firstPerson = true;
-        }
-        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-        {
-            camera.firstPerson = false;
-        }
-
-        // Update camera from mouse input
-        double mousePosX, mousePosY;
-        glfwGetCursorPos(window, &mousePosX, &mousePosY);
-        double dx = mousePosX - lastMousePosX;
-        double dy = mousePosY - lastMousePosY;
-        lastMousePosX = mousePosX;
-        lastMousePosY = mousePosY;
-
-        updateCameraAngles(
-            camera, 
-            static_cast<float>(dx), 
-            static_cast<float>(dy), 
-            dt
-        );
-        updateCameraPosition(camera, window, dt);
-
-        // Handle arrow key camera control
-        const float arrowLookSpeed = 60.0f;
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-        {
-            camera.horizontalAngle += arrowLookSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-        {
-            camera.horizontalAngle -= arrowLookSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-        {
-            camera.verticalAngle += arrowLookSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-        {
-            camera.verticalAngle -= arrowLookSpeed * dt;
-        }
         
-        // Update camera look direction based on angles
-        float theta = radians(camera.horizontalAngle);
-        float phi = radians(camera.verticalAngle);
-        camera.lookAt = vec3(cos(phi) * cos(theta), sin(phi), -cos(phi) * sin(theta));
+        // Only allow manual camera mode switching when not in planet selection mode
+        if (!planetSelectionMode) {
+            if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+            {
+                camera.firstPerson = true;
+            }
+            if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+            {
+                camera.firstPerson = false;
+            }
+        }
+
+        // Update camera from mouse input (only when not in planet selection mode)
+        if (!planetSelectionMode) {
+            double mousePosX, mousePosY;
+            glfwGetCursorPos(window, &mousePosX, &mousePosY);
+            double dx = mousePosX - lastMousePosX;
+            double dy = mousePosY - lastMousePosY;
+            lastMousePosX = mousePosX;
+            lastMousePosY = mousePosY;
+
+            updateCameraAngles(
+                camera, 
+                static_cast<float>(dx), 
+                static_cast<float>(dy), 
+                dt
+            );
+            updateCameraPosition(camera, window, dt);
+
+            // Handle arrow key camera control
+            const float arrowLookSpeed = 60.0f;
+            if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+            {
+                camera.horizontalAngle += arrowLookSpeed * dt;
+            }
+            if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+            {
+                camera.horizontalAngle -= arrowLookSpeed * dt;
+            }
+            if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+            {
+                camera.verticalAngle += arrowLookSpeed * dt;
+            }
+            if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+            {
+                camera.verticalAngle -= arrowLookSpeed * dt;
+            }
+            
+            // Update camera look direction based on angles
+            float theta = radians(camera.horizontalAngle);
+            float phi = radians(camera.verticalAngle);
+            camera.lookAt = vec3(cos(phi) * cos(theta), sin(phi), -cos(phi) * sin(theta));
+        }
     }
 
     // Cleanup
