@@ -395,6 +395,16 @@ struct CelestialBody
     float orbitSpeed;    		// Speed of orbital movement
 };
 
+// Saturn's rings structure
+struct PlanetRing
+{
+    GLuint vao;
+    GLuint texture;
+    unsigned int indexCount;
+    float innerRadius;
+    float outerRadius;
+};
+
 // Generates vertices and texture coordinates for a UV sphere
 // Creates a sphere by dividing it into rings and sectors:
 // - rings: vertical divisions from pole to pole
@@ -569,6 +579,59 @@ CelestialBody createCelestialBody(
     body.texture = loadTexture(texturePath);
 
     return body;
+}
+
+// Function to create Saturn's rings
+PlanetRing createSaturnRings()
+{
+    PlanetRing ring;
+    
+    // Create ring geometry (simplified as a flat disk with hole)
+    std::vector<vec3> vertices;
+    std::vector<vec2> uvs;
+    std::vector<unsigned int> indices;
+    
+    float innerRadius = 1.2f;  // Inner edge of rings
+    float outerRadius = 2.0f;  // Outer edge of rings
+    int segments = 64;         // Number of segments around the ring
+    
+    // Generate ring vertices
+    for (int i = 0; i <= segments; ++i)
+    {
+        float angle = (float)i / segments * 2.0f * 3.14159f;
+        float cosA = cos(angle);
+        float sinA = sin(angle);
+        
+        // Inner vertex
+        vertices.push_back(vec3(innerRadius * cosA, 0.0f, innerRadius * sinA));
+        uvs.push_back(vec2(0.0f, (float)i / segments));
+        
+        // Outer vertex
+        vertices.push_back(vec3(outerRadius * cosA, 0.0f, outerRadius * sinA));
+        uvs.push_back(vec2(1.0f, (float)i / segments));
+    }
+    
+    // Generate indices for ring triangles
+    for (int i = 0; i < segments * 2; i += 2)
+    {
+        // First triangle
+        indices.push_back(i);
+        indices.push_back(i + 1);
+        indices.push_back(i + 2);
+        
+        // Second triangle
+        indices.push_back(i + 1);
+        indices.push_back(i + 3);
+        indices.push_back(i + 2);
+    }
+    
+    ring.vao = setupSphereBuffers(vertices, uvs, indices);
+    ring.indexCount = indices.size();
+    ring.texture = loadTexture("textures/saturn_rings.png"); // Semi-transparent ring texture
+    ring.innerRadius = innerRadius;
+    ring.outerRadius = outerRadius;
+    
+    return ring;
 }
 
 // Manages the space background environment:
@@ -794,6 +857,41 @@ void renderCelestialBody(
 	
 	// Re-enable culling after rendering celestial bodies
 	glEnable(GL_CULL_FACE);
+}
+
+// Function to render Saturn's rings
+void renderPlanetRings(const PlanetRing& ring, const CelestialBody& planet,
+                      GLuint shader, const mat4& viewMatrix, const mat4& projectionMatrix,
+                      const vec3& lightPos, const vec3& viewPos)
+{
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_CULL_FACE);  // Rings should be visible from both sides
+    
+    glUseProgram(shader);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, ring.texture);
+    glUniform1i(glGetUniformLocation(shader, "texture1"), 0);
+    glUniform1i(glGetUniformLocation(shader, "isSun"), 0); // Rings are not the sun
+    
+    // Position rings at planet location
+    mat4 worldMatrix = translate(mat4(1.0f), planet.position) 
+                     * rotate(mat4(1.0f), radians(-10.0f), vec3(1.0f, 0.0f, 0.0f)) // Tilt rings
+                     * scale(mat4(1.0f), vec3(1.0f, 1.0f, 1.0f));
+    
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
+    
+    // Set lighting uniforms
+    glUniform3fv(glGetUniformLocation(shader, "lightPos"), 1, &lightPos[0]);
+    glUniform3fv(glGetUniformLocation(shader, "viewPos"), 1, &viewPos[0]);
+    
+    glBindVertexArray(ring.vao);
+    glDrawElements(GL_TRIANGLES, ring.indexCount, GL_UNSIGNED_INT, 0);
+    
+    glEnable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
 }
 
 void updateCameraAngles(Camera &camera, float dx, float dy, float dt)
@@ -1103,41 +1201,114 @@ int main(int argc, char *argv[])
     int vao = createVertexBufferObject();
     Model duckModel = loadModel("models/rubber_duck/scene.gltf");
 
-    // Setup celestial bodies
-    CelestialBody sun = createCelestialBody(
-		"textures/sun.jpg", 
-		2.0f, 
-		0.0f, 
-		0.0f, 
-		15.0f
-	);
-    sun.position = vec3(0.0f, 0.0f, -20.0f);
+    // Replace the celestial body creation section in your main() function with this:
 
-    CelestialBody earth = createCelestialBody(
-		"textures/earth.jpg", 
-		0.3f, 
-		5.0f, 
-		1.0f, 
-		20.0f
-	);
-	
-    CelestialBody moon = createCelestialBody(
-		"textures/moon.jpg", 
-		0.08f, 
-		1.0f, 
-		4.0f, 
-		5.0f
-	);
+// Setup celestial bodies with realistic proportions
+// Using a scale where Earth = 0.3f as base reference
 
-    // Setup skybox
+/// SUN - Center of the system
+CelestialBody sun = createCelestialBody(
+    "textures/sun.jpg", 
+    4.0f,      // Large but viewable size
+    0.0f,      // No orbit - center of system
+    0.0f,      // No orbital movement
+    15.0f      // Rotation speed
+);
+sun.position = vec3(0.0f, 0.0f, -20.0f);
+
+// MERCURY - Smallest planet, closest orbit
+CelestialBody mercury = createCelestialBody(
+    "textures/mercury.jpg",
+    0.11f,     // Small size
+    8.0f,      // Safe distance from sun (was 3.0f)
+    2.0f,      // Fastest orbital speed
+    35.0f      // Fast rotation
+);
+
+// VENUS - Second planet
+CelestialBody venus = createCelestialBody(
+    "textures/venus.jpg",
+    0.28f,     // Venus size
+    10.0f,     // Safe distance from mercury (was 4.5f)
+    1.6f,      // Orbital speed
+    -12.0f     // Slow retrograde rotation
+);
+
+// EARTH - Third planet
+CelestialBody earth = createCelestialBody(
+    "textures/earth.jpg", 
+    0.3f,      // Earth size
+    12.0f,     // Safe distance from venus (was 6.0f)
+    1.0f,      // Earth orbital speed reference
+    20.0f      // Earth rotation speed
+);
+
+// MOON - Orbits Earth
+CelestialBody moon = createCelestialBody(
+    "textures/moon.jpg", 
+    0.08f,     // Small moon size
+    1.2f,      // Distance from Earth (increased from 1.0f)
+    4.0f,      // Fast orbit around Earth
+    5.0f       // Moon rotation
+);
+
+// MARS - Fourth planet
+CelestialBody mars = createCelestialBody(
+    "textures/mars.jpg", 
+    0.16f,     // Mars size
+    15.0f,     // Safe distance from Earth (was 7.5f)
+    0.8f,      // Slower orbital speed than Earth
+    18.0f      // Rotation speed
+);
+
+// JUPITER - Fifth planet, largest
+CelestialBody jupiter = createCelestialBody(
+    "textures/jupiter.jpg", 
+    3.36f,     // Large size
+    22.0f,     // Safe distance from Mars (was 10.0f)
+    0.5f,      // Slower orbital speed
+    30.0f      // Fast rotation speed
+);
+
+// SATURN - Sixth planet with rings
+CelestialBody saturn = createCelestialBody(
+    "textures/saturn.jpg", 
+    2.82f,     // Large size
+    28.0f,     // Safe distance from Jupiter (was 14.0f)
+    0.35f,     // Slow orbital speed
+    28.0f      // Fast rotation speed
+);
+
+// URANUS - Seventh planet
+CelestialBody uranus = createCelestialBody(
+    "textures/uranus.jpg",
+    1.2f,      // Medium size
+    34.0f,     // Safe distance from Saturn (was 18.0f)
+    0.25f,     // Very slow orbital speed
+    -15.0f     // Retrograde rotation
+);
+
+// NEPTUNE - Outermost planet
+CelestialBody neptune = createCelestialBody(
+    "textures/neptune.jpg",
+    1.17f,     // Medium size
+    40.0f,     // Safe distance from Uranus (was 22.0f)
+    0.2f,      // Slowest orbital speed
+    18.0f      // Normal rotation speed
+);
+
+// Create Saturn's rings
+PlanetRing saturnRings = createSaturnRings();
+
+     // Setup skybox
     std::vector<std::string> skyboxFaces = {
-		"textures/skybox/1.png",
-		"textures/skybox/2.png",
-		"textures/skybox/3.png",
-		"textures/skybox/4.png",
-		"textures/skybox/5.png",
-		"textures/skybox/6.png"
-	};
+        "textures/skybox/1.png",
+        "textures/skybox/2.png",
+        "textures/skybox/3.png",
+        "textures/skybox/4.png",
+        "textures/skybox/5.png",
+        "textures/skybox/6.png"
+    };
     Skybox skybox = createSkybox(skyboxFaces);
 
     // Initialize animation variables
@@ -1194,25 +1365,25 @@ int main(int argc, char *argv[])
         // Setup base shader for scene rendering
         glUseProgram(shaders.base);
         
-		glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &viewMatrix[0][0]);
+        glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &viewMatrix[0][0]);
         
-		glUniformMatrix4fv(
-			projectionMatrixLocation, 
-			1, 
-			GL_FALSE, 
-			&projectionMatrix[0][0]
-		);
+        glUniformMatrix4fv(
+            projectionMatrixLocation, 
+            1, 
+            GL_FALSE, 
+            &projectionMatrix[0][0]
+        );
         
-		glBindVertexArray(vao);
+        glBindVertexArray(vao);
 
         // Update and render spinning duck (third-person view only)
         spinningCubeAngle += 180.0f * dt;
         if (!camera.firstPerson)
         {
             GLuint worldMatrixLocation = glGetUniformLocation(
-				shaders.base, 
-				"worldMatrix"
-			);
+                shaders.base, 
+                "worldMatrix"
+            );
 
             mat4 spinningCubeWorldMatrix = translate(
                 mat4(1.0f), 
@@ -1234,53 +1405,48 @@ int main(int argc, char *argv[])
             );
 
             glUniformMatrix4fv(
-				worldMatrixLocation, 
-				1, 
-				GL_FALSE, 
-				&spinningCubeWorldMatrix[0][0]
-			);
+                worldMatrixLocation, 
+                1, 
+                GL_FALSE, 
+                &spinningCubeWorldMatrix[0][0]
+            );
             
             if (!duckModel.meshes.empty()) {
                 glDisable(GL_CULL_FACE);
                 duckModel.Draw(shaders.base);
                 glEnable(GL_CULL_FACE);
             }
-		}
+        }
 
-        // Update celestial bodies
+        // Update celestial bodies - Complete solar system animation
         orbAngle += 20.0f * animationDt;
         vec3 sunPosition = vec3(0.0f, 0.0f, -20.0f);
+        
+        // Update all celestial bodies with realistic orbital mechanics
         updateCelestialBody(sun, sun.position, orbAngle, animationDt);
+        updateCelestialBody(mercury, sun.position, orbAngle, animationDt);
+        updateCelestialBody(venus, sun.position, orbAngle, animationDt);
         updateCelestialBody(earth, sun.position, orbAngle, animationDt);
+        updateCelestialBody(mars, sun.position, orbAngle, animationDt);
+        updateCelestialBody(jupiter, sun.position, orbAngle, animationDt);
+        updateCelestialBody(saturn, sun.position, orbAngle, animationDt);
+        updateCelestialBody(uranus, sun.position, orbAngle, animationDt);
+        updateCelestialBody(neptune, sun.position, orbAngle, animationDt);
         updateCelestialBody(moon, earth.position, orbAngle, animationDt);
 
-        // Render celestial bodies
-        renderCelestialBody(sun, 
-			shaders.orb, 
-			viewMatrix, 
-			projectionMatrix, 
-			sun.position, 
-			camera.position,
-			true  // This is the sun
-		);
-
-        renderCelestialBody(earth, 
-			shaders.orb, 
-			viewMatrix, 
-			projectionMatrix, 
-			sun.position, 
-			camera.position,
-			false  // Not the sun
-		);
-
-        renderCelestialBody(moon, 
-			shaders.orb, 
-			viewMatrix, 
-			projectionMatrix, 
-			sun.position, 
-			camera.position,
-			false  // Not the sun
-		);
+        // Render all celestial bodies in order from sun outward
+        renderCelestialBody(sun, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, true);
+        renderCelestialBody(mercury, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(venus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(earth, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(mars, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(jupiter, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        // Render Saturn's rings immediately after Saturn
+        renderPlanetRings(saturnRings, saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position);
+        renderCelestialBody(uranus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(neptune, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);
@@ -1309,11 +1475,11 @@ int main(int argc, char *argv[])
         lastMousePosY = mousePosY;
 
         updateCameraAngles(
-			camera, 
-			static_cast<float>(dx), 
-			static_cast<float>(dy), 
-			dt
-		);
+            camera, 
+            static_cast<float>(dx), 
+            static_cast<float>(dy), 
+            dt
+        );
         updateCameraPosition(camera, window, dt);
 
         // Handle arrow key camera control
@@ -1334,9 +1500,14 @@ int main(int argc, char *argv[])
         {
             camera.verticalAngle -= arrowLookSpeed * dt;
         }
+        
+        // Update camera look direction based on angles
+        float theta = radians(camera.horizontalAngle);
+        float phi = radians(camera.verticalAngle);
+        camera.lookAt = vec3(cos(phi) * cos(theta), sin(phi), -cos(phi) * sin(theta));
     }
 
+    // Cleanup
     glfwTerminate();
-
     return 0;
 }
