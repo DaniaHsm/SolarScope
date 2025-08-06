@@ -10,7 +10,7 @@ uniform vec3 lightPos;      // Sun's position
 uniform bool isSun;         // Whether this object is the sun
 
 // Shadow casting uniforms
-#define MAX_PLANETS 8
+#define MAX_PLANETS 9
 uniform vec3 planetPositions[MAX_PLANETS];  // Positions of all planets
 uniform float planetRadii[MAX_PLANETS];     // Radii of all planets
 uniform int numPlanets;                     // Number of planets
