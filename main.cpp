@@ -798,21 +798,30 @@ mat4 getCelestialBodyMatrix(const CelestialBody &body)
 }
 
 void renderCelestialBody(
-	const CelestialBody &body, 
-    GLuint shader, 
-    const mat4 &viewMatrix, 
-    const mat4 &projectionMatrix, 
-    const vec3 &lightPos, 
+    const CelestialBody &body,
+    GLuint shader,
+    const mat4 &viewMatrix,
+    const mat4 &projectionMatrix,
+    const vec3 &lightPos,
     const vec3 &viewPos,
-    bool isSun = false)
+    bool isSun = false,
+    const vector<vec3> &allPlanetPositions = vector<vec3>(),
+    const vector<float> &allPlanetRadii = vector<float>())
 {
-	// Disable culling for celestial bodies to ensure correct appearance
-	glDisable(GL_CULL_FACE);
+    // Disable culling for celestial bodies to ensure correct appearance
+    glDisable(GL_CULL_FACE);
     glUseProgram(shader);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, body.texture);
     glUniform1i(glGetUniformLocation(shader, "texture1"), 0);
     glUniform1i(glGetUniformLocation(shader, "isSun"), isSun ? 1 : 0);
+
+    // Pass planet data for shadow calculations
+    if (!isSun && !allPlanetPositions.empty()) {
+        glUniform3fv(glGetUniformLocation(shader, "planetPositions"), allPlanetPositions.size(), &allPlanetPositions[0][0]);
+        glUniform1fv(glGetUniformLocation(shader, "planetRadii"), allPlanetRadii.size(), &allPlanetRadii[0]);
+        glUniform1i(glGetUniformLocation(shader, "numPlanets"), allPlanetPositions.size());
+    }
 
     mat4 worldMatrix = getCelestialBodyMatrix(body);
 
@@ -1435,19 +1444,29 @@ PlanetRing saturnRings = createSaturnRings();
         updateCelestialBody(neptune, sun.position, orbAngle, animationDt);
         updateCelestialBody(moon, earth.position, orbAngle, animationDt);
 
+        // Collect all planet positions and radii for shadow calculations
+        vector<vec3> planetPositions = {
+            mercury.position, venus.position, earth.position, mars.position,
+            jupiter.position, saturn.position, uranus.position, neptune.position
+        };
+        vector<float> planetRadii = {
+            mercury.scale.x, venus.scale.x, earth.scale.x, mars.scale.x,
+            jupiter.scale.x, saturn.scale.x, uranus.scale.x, neptune.scale.x
+        };
+
         // Render all celestial bodies in order from sun outward
         renderCelestialBody(sun, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, true);
-        renderCelestialBody(mercury, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(venus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(earth, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(mars, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(jupiter, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(mercury, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(venus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(earth, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(mars, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(jupiter, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
         // Render Saturn's rings immediately after Saturn
         renderPlanetRings(saturnRings, saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position);
-        renderCelestialBody(uranus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(neptune, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        renderCelestialBody(uranus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(neptune, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);
