@@ -9,9 +9,11 @@
 ## Controls:
 - 1 & 2 to switch between first-person and third-person point of view
 - W A S D to move around
+- X to trigger black hole
+- R to reset world
 - Shift to move faster
 - Mouse or arrow keys to move camera
-- Spacebar to stop all movements of orbiting objects
+- Space-bar to stop all movements of orbiting objects
 
 ## Contributors:
 - Yusuf Chahal
