@@ -395,6 +395,38 @@ struct CelestialBody
     float orbitSpeed;    		// Speed of orbital movement
 };
 
+// Black hole structure with proper functionality
+struct BlackHole {
+    vec3 position;
+    float strength;
+    bool active;
+    float activationTime;
+    vector<vec3> originalPositions;  // Positions when X was pressed (for black hole effect)
+    vector<vec3> originalScales;     // Scales when X was pressed (for black hole effect)
+    vector<vec3> resetPositions;     // Orbital positions to return to when R is pressed
+    vector<vec3> resetScales;        // Original scales to return to when R is pressed
+    
+    // Constructor
+    BlackHole() : position(vec3(0.0f)), strength(0.0f), active(false), activationTime(0.0f) {}
+};
+
+// Function to initialize black hole with original positions
+BlackHole createBlackHole(vec3 center, const vector<CelestialBody*>& bodies) {
+    BlackHole blackHole;
+    blackHole.position = center;
+    blackHole.strength = 0.0f;
+    blackHole.active = false;
+    blackHole.activationTime = 0.0f;
+    
+    // Store original positions and scales
+    for (const auto& body : bodies) {
+        blackHole.originalPositions.push_back(body->position);
+        blackHole.originalScales.push_back(body->scale);
+    }
+    
+    return blackHole;
+}
+
 // Saturn's rings structure
 struct PlanetRing
 {
@@ -1378,101 +1410,99 @@ int main(int argc, char *argv[])
     int vao = createVertexBufferObject();
     Model duckModel = loadModel("models/rubber_duck/scene.gltf");
 
-    // Replace the celestial body creation section in your main() function with this:
+    // Setup celestial bodies with realistic proportions
+    // Using a scale where Earth = 0.3f as base reference
 
-// Setup celestial bodies with realistic proportions
-// Using a scale where Earth = 0.3f as base reference
+    /// SUN - Center of the system
+    CelestialBody sun = createCelestialBody(
+        "textures/sun.jpg", 
+        4.0f,      // Large but viewable size
+        0.0f,      // No orbit - center of system
+        0.0f,      // No orbital movement
+        15.0f      // Rotation speed
+    );
+    sun.position = vec3(0.0f, 0.0f, -20.0f);
 
-/// SUN - Center of the system
-CelestialBody sun = createCelestialBody(
-    "textures/sun.jpg", 
-    4.0f,      // Large but viewable size
-    0.0f,      // No orbit - center of system
-    0.0f,      // No orbital movement
-    15.0f      // Rotation speed
-);
-sun.position = vec3(0.0f, 0.0f, -20.0f);
+    // MERCURY - Smallest planet, closest orbit
+    CelestialBody mercury = createCelestialBody(
+        "textures/mercury.jpg",
+        0.11f,     // Small size
+        8.0f,      // Safe distance from sun (was 3.0f)
+        2.0f,      // Fastest orbital speed
+        35.0f      // Fast rotation
+    );
 
-// MERCURY - Smallest planet, closest orbit
-CelestialBody mercury = createCelestialBody(
-    "textures/mercury.jpg",
-    0.11f,     // Small size
-    8.0f,      // Safe distance from sun (was 3.0f)
-    2.0f,      // Fastest orbital speed
-    35.0f      // Fast rotation
-);
+    // VENUS - Second planet
+    CelestialBody venus = createCelestialBody(
+        "textures/venus.jpg",
+        0.28f,     // Venus size
+        10.0f,     // Safe distance from mercury (was 4.5f)
+        1.6f,      // Orbital speed
+        -12.0f     // Slow retrograde rotation
+    );
 
-// VENUS - Second planet
-CelestialBody venus = createCelestialBody(
-    "textures/venus.jpg",
-    0.28f,     // Venus size
-    10.0f,     // Safe distance from mercury (was 4.5f)
-    1.6f,      // Orbital speed
-    -12.0f     // Slow retrograde rotation
-);
+    // EARTH - Third planet
+    CelestialBody earth = createCelestialBody(
+        "textures/earth.jpg", 
+        0.3f,      // Earth size
+        12.0f,     // Safe distance from venus (was 6.0f)
+        1.0f,      // Earth orbital speed reference
+        20.0f      // Earth rotation speed
+    );
 
-// EARTH - Third planet
-CelestialBody earth = createCelestialBody(
-    "textures/earth.jpg", 
-    0.3f,      // Earth size
-    12.0f,     // Safe distance from venus (was 6.0f)
-    1.0f,      // Earth orbital speed reference
-    20.0f      // Earth rotation speed
-);
+    // MOON - Orbits Earth
+    CelestialBody moon = createCelestialBody(
+        "textures/moon.jpg", 
+        0.08f,     // Small moon size
+        1.2f,      // Distance from Earth (increased from 1.0f)
+        4.0f,      // Fast orbit around Earth
+        5.0f       // Moon rotation
+    );
 
-// MOON - Orbits Earth
-CelestialBody moon = createCelestialBody(
-    "textures/moon.jpg", 
-    0.08f,     // Small moon size
-    1.2f,      // Distance from Earth (increased from 1.0f)
-    4.0f,      // Fast orbit around Earth
-    5.0f       // Moon rotation
-);
+    // MARS - Fourth planet
+    CelestialBody mars = createCelestialBody(
+        "textures/mars.jpg", 
+        0.16f,     // Mars size
+        15.0f,     // Safe distance from Earth (was 7.5f)
+        0.8f,      // Slower orbital speed than Earth
+        18.0f      // Rotation speed
+    );
 
-// MARS - Fourth planet
-CelestialBody mars = createCelestialBody(
-    "textures/mars.jpg", 
-    0.16f,     // Mars size
-    15.0f,     // Safe distance from Earth (was 7.5f)
-    0.8f,      // Slower orbital speed than Earth
-    18.0f      // Rotation speed
-);
+    // JUPITER - Fifth planet, largest
+    CelestialBody jupiter = createCelestialBody(
+        "textures/jupiter.jpg", 
+        3.36f,     // Large size
+        22.0f,     // Safe distance from Mars (was 10.0f)
+        0.5f,      // Slower orbital speed
+        30.0f      // Fast rotation speed
+    );
 
-// JUPITER - Fifth planet, largest
-CelestialBody jupiter = createCelestialBody(
-    "textures/jupiter.jpg", 
-    3.36f,     // Large size
-    22.0f,     // Safe distance from Mars (was 10.0f)
-    0.5f,      // Slower orbital speed
-    30.0f      // Fast rotation speed
-);
+    // SATURN - Sixth planet with rings
+    CelestialBody saturn = createCelestialBody(
+        "textures/saturn.jpg", 
+        2.82f,     // Large size
+        28.0f,     // Safe distance from Jupiter (was 14.0f)
+        0.35f,     // Slow orbital speed
+        28.0f      // Fast rotation speed
+    );
 
-// SATURN - Sixth planet with rings
-CelestialBody saturn = createCelestialBody(
-    "textures/saturn.jpg", 
-    2.82f,     // Large size
-    28.0f,     // Safe distance from Jupiter (was 14.0f)
-    0.35f,     // Slow orbital speed
-    28.0f      // Fast rotation speed
-);
+    // URANUS - Seventh planet
+    CelestialBody uranus = createCelestialBody(
+        "textures/uranus.jpg",
+        1.2f,      // Medium size
+        34.0f,     // Safe distance from Saturn (was 18.0f)
+        0.25f,     // Very slow orbital speed
+        -15.0f     // Retrograde rotation
+    );
 
-// URANUS - Seventh planet
-CelestialBody uranus = createCelestialBody(
-    "textures/uranus.jpg",
-    1.2f,      // Medium size
-    34.0f,     // Safe distance from Saturn (was 18.0f)
-    0.25f,     // Very slow orbital speed
-    -15.0f     // Retrograde rotation
-);
-
-// NEPTUNE - Outermost planet
-CelestialBody neptune = createCelestialBody(
-    "textures/neptune.jpg",
-    1.17f,     // Medium size
-    40.0f,     // Safe distance from Uranus (was 22.0f)
-    0.2f,      // Slowest orbital speed
-    18.0f      // Normal rotation speed
-);
+    // NEPTUNE - Outermost planet
+    CelestialBody neptune = createCelestialBody(
+        "textures/neptune.jpg",
+        1.17f,     // Medium size
+        40.0f,     // Safe distance from Uranus (was 22.0f)
+        0.2f,      // Slowest orbital speed
+        18.0f      // Normal rotation speed
+    );
 
 Comet halleysComet = createComet(
     "textures/comet.jpg",
@@ -1489,11 +1519,55 @@ Comet comet2 = createComet(
 );
 comet2.orbitAngle = 180.0f; // Start on opposite side
 
+    // Create Saturn's rings
+    PlanetRing saturnRings = createSaturnRings();
 
-// Create Saturn's rings
-PlanetRing saturnRings = createSaturnRings();
+    // Create list of all celestial bodies for black hole effect
+    vector<CelestialBody*> allBodies = {&sun, &mercury, &venus, &earth, &moon, &mars, &jupiter, &saturn, &uranus, &neptune};
+    
+    // Store reset positions AFTER bodies are created but BEFORE any updates
+    BlackHole blackHole;
+    blackHole.position = vec3(0.0f, 0.0f, -20.0f); // Black hole center
+    blackHole.strength = 0.0f;
+    blackHole.active = false;
+    blackHole.activationTime = 0.0f;
+    
+    // Now set up initial orbital positions for normal animation
+    updateCelestialBody(mercury, sun.position, 0.0f, 0.0f);
+    updateCelestialBody(venus, sun.position, 45.0f, 0.0f);
+    updateCelestialBody(earth, sun.position, 90.0f, 0.0f);
+    updateCelestialBody(mars, sun.position, 135.0f, 0.0f);
+    updateCelestialBody(jupiter, sun.position, 180.0f, 0.0f);
+    updateCelestialBody(saturn, sun.position, 225.0f, 0.0f);
+    updateCelestialBody(uranus, sun.position, 270.0f, 0.0f);
+    updateCelestialBody(neptune, sun.position, 315.0f, 0.0f);
+    updateCelestialBody(moon, earth.position, 0.0f, 0.0f);
+    
+    // Store these as the RESET positions (what we return to with R key)
+    blackHole.resetPositions.clear();
+    blackHole.resetScales.clear();
+    blackHole.resetPositions.push_back(sun.position);          
+    blackHole.resetScales.push_back(sun.scale);
+    blackHole.resetPositions.push_back(mercury.position);      
+    blackHole.resetScales.push_back(mercury.scale);
+    blackHole.resetPositions.push_back(venus.position);        
+    blackHole.resetScales.push_back(venus.scale);
+    blackHole.resetPositions.push_back(earth.position);        
+    blackHole.resetScales.push_back(earth.scale);
+    blackHole.resetPositions.push_back(moon.position);         
+    blackHole.resetScales.push_back(moon.scale);
+    blackHole.resetPositions.push_back(mars.position);         
+    blackHole.resetScales.push_back(mars.scale);
+    blackHole.resetPositions.push_back(jupiter.position);      
+    blackHole.resetScales.push_back(jupiter.scale);
+    blackHole.resetPositions.push_back(saturn.position);       
+    blackHole.resetScales.push_back(saturn.scale);
+    blackHole.resetPositions.push_back(uranus.position);       
+    blackHole.resetScales.push_back(uranus.scale);
+    blackHole.resetPositions.push_back(neptune.position);      
+    blackHole.resetScales.push_back(neptune.scale);
 
-     // Setup skybox
+    // Setup skybox
     std::vector<std::string> skyboxFaces = {
         "textures/skybox/1.png",
         "textures/skybox/2.png",
@@ -1522,6 +1596,10 @@ PlanetRing saturnRings = createSaturnRings();
     bool isPaused = false;
     bool wasSpacePressed = false;
 
+    // Input state tracking for X & R keys
+    static bool wasXPressed = false;
+    static bool wasRPressed = false;
+
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
@@ -1542,6 +1620,80 @@ PlanetRing saturnRings = createSaturnRings();
         {
             wasSpacePressed = false;
         }
+        
+        // FIXED: Move X and R key handling inside the main loop
+        // X key to activate black hole
+        if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
+            if (!wasXPressed && !blackHole.active) {
+                blackHole.active = true;
+                blackHole.activationTime = glfwGetTime();
+                std::cout << "Black hole activated!" << std::endl;
+                
+                // CRITICAL FIX: Capture CURRENT positions when X is pressed, not stored positions
+                blackHole.originalPositions.clear();
+                blackHole.originalScales.clear();
+                blackHole.originalPositions.push_back(sun.position);          // Current sun position
+                blackHole.originalScales.push_back(sun.scale);
+                blackHole.originalPositions.push_back(mercury.position);      // Current mercury position
+                blackHole.originalScales.push_back(mercury.scale);
+                blackHole.originalPositions.push_back(venus.position);        // Current venus position
+                blackHole.originalScales.push_back(venus.scale);
+                blackHole.originalPositions.push_back(earth.position);        // Current earth position
+                blackHole.originalScales.push_back(earth.scale);
+                blackHole.originalPositions.push_back(moon.position);         // Current moon position
+                blackHole.originalScales.push_back(moon.scale);
+                blackHole.originalPositions.push_back(mars.position);         // Current mars position
+                blackHole.originalScales.push_back(mars.scale);
+                blackHole.originalPositions.push_back(jupiter.position);      // Current jupiter position
+                blackHole.originalScales.push_back(jupiter.scale);
+                blackHole.originalPositions.push_back(saturn.position);       // Current saturn position
+                blackHole.originalScales.push_back(saturn.scale);
+                blackHole.originalPositions.push_back(uranus.position);       // Current uranus position
+                blackHole.originalScales.push_back(uranus.scale);
+                blackHole.originalPositions.push_back(neptune.position);      // Current neptune position
+                blackHole.originalScales.push_back(neptune.scale);
+                
+                wasXPressed = true;
+            }
+        } else {
+            wasXPressed = false;
+        }
+
+        // R key to reset
+        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
+            if (!wasRPressed) {
+                blackHole.active = false;
+                blackHole.strength = 0.0f;
+                std::cout << "Black hole reset!" << std::endl;
+                
+                // Reset all bodies to normal orbital positions (not the X-pressed positions)
+                sun.position = blackHole.resetPositions[0];
+                sun.scale = blackHole.resetScales[0];
+                mercury.position = blackHole.resetPositions[1]; 
+                mercury.scale = blackHole.resetScales[1];
+                venus.position = blackHole.resetPositions[2];
+                venus.scale = blackHole.resetScales[2];
+                earth.position = blackHole.resetPositions[3];
+                earth.scale = blackHole.resetScales[3];
+                moon.position = blackHole.resetPositions[4];
+                moon.scale = blackHole.resetScales[4];
+                mars.position = blackHole.resetPositions[5];
+                mars.scale = blackHole.resetScales[5];
+                jupiter.position = blackHole.resetPositions[6];
+                jupiter.scale = blackHole.resetScales[6];
+                saturn.position = blackHole.resetPositions[7];
+                saturn.scale = blackHole.resetScales[7];
+                uranus.position = blackHole.resetPositions[8];
+                uranus.scale = blackHole.resetScales[8];
+                neptune.position = blackHole.resetPositions[9];
+                neptune.scale = blackHole.resetScales[9];
+                
+                wasRPressed = true;
+            }
+        } else {
+            wasRPressed = false;
+        }
+
         float animationDt = isPaused ? 0.0f : dt;
 
         // Clear buffers
@@ -1611,21 +1763,69 @@ PlanetRing saturnRings = createSaturnRings();
             }
         }
 
-        // Update celestial bodies - Complete solar system animation
+        // Update celestial body positions and handle black hole effect
         orbAngle += 20.0f * animationDt;
         vec3 sunPosition = vec3(0.0f, 0.0f, -20.0f);
-        
-        // Update all celestial bodies with realistic orbital mechanics
-        updateCelestialBody(sun, sun.position, orbAngle, animationDt);
-        updateCelestialBody(mercury, sun.position, orbAngle, animationDt);
-        updateCelestialBody(venus, sun.position, orbAngle, animationDt);
-        updateCelestialBody(earth, sun.position, orbAngle, animationDt);
-        updateCelestialBody(mars, sun.position, orbAngle, animationDt);
-        updateCelestialBody(jupiter, sun.position, orbAngle, animationDt);
-        updateCelestialBody(saturn, sun.position, orbAngle, animationDt);
-        updateCelestialBody(uranus, sun.position, orbAngle, animationDt);
-        updateCelestialBody(neptune, sun.position, orbAngle, animationDt);
-        updateCelestialBody(moon, earth.position, orbAngle, animationDt);
+
+        // FIXED: Proper black hole effect implementation
+        if (blackHole.active) {
+            float elapsed = glfwGetTime() - blackHole.activationTime;
+            float effectDuration = 6.0f; // 6 second effect for better visibility
+            blackHole.strength = std::min(1.0f, elapsed / effectDuration);
+            
+            // Apply black hole effect to all bodies - shrink to COMPLETELY INVISIBLE
+            float shrinkFactor = std::max(0.0f, 1.0f - blackHole.strength); // Goes from 1.0 to 0.0 (completely invisible)
+            
+            // Linear interpolation function
+            auto lerp = [](const vec3& a, const vec3& b, float t) -> vec3 {
+                return a + t * (b - a);
+            };
+            
+            // Apply effect to ALL bodies including the sun - they all go to the black hole center
+            sun.position = lerp(blackHole.originalPositions[0], blackHole.position, blackHole.strength);
+            sun.scale = blackHole.originalScales[0] * shrinkFactor;
+            
+            mercury.position = lerp(blackHole.originalPositions[1], blackHole.position, blackHole.strength);
+            mercury.scale = blackHole.originalScales[1] * shrinkFactor;
+            
+            venus.position = lerp(blackHole.originalPositions[2], blackHole.position, blackHole.strength);
+            venus.scale = blackHole.originalScales[2] * shrinkFactor;
+            
+            earth.position = lerp(blackHole.originalPositions[3], blackHole.position, blackHole.strength);
+            earth.scale = blackHole.originalScales[3] * shrinkFactor;
+            
+            moon.position = lerp(blackHole.originalPositions[4], blackHole.position, blackHole.strength);
+            moon.scale = blackHole.originalScales[4] * shrinkFactor;
+            
+            mars.position = lerp(blackHole.originalPositions[5], blackHole.position, blackHole.strength);
+            mars.scale = blackHole.originalScales[5] * shrinkFactor;
+            
+            jupiter.position = lerp(blackHole.originalPositions[6], blackHole.position, blackHole.strength);
+            jupiter.scale = blackHole.originalScales[6] * shrinkFactor;
+            
+            saturn.position = lerp(blackHole.originalPositions[7], blackHole.position, blackHole.strength);
+            saturn.scale = blackHole.originalScales[7] * shrinkFactor;
+            
+            uranus.position = lerp(blackHole.originalPositions[8], blackHole.position, blackHole.strength);
+            uranus.scale = blackHole.originalScales[8] * shrinkFactor;
+            
+            neptune.position = lerp(blackHole.originalPositions[9], blackHole.position, blackHole.strength);
+            neptune.scale = blackHole.originalScales[9] * shrinkFactor;
+            
+            // Don't do normal orbital updates during black hole effect - COMPLETELY override positions
+        } else {
+            // Normal celestial body updates only when black hole is not active
+            updateCelestialBody(sun, sun.position, orbAngle, animationDt);
+            updateCelestialBody(mercury, sun.position, orbAngle, animationDt);
+            updateCelestialBody(venus, sun.position, orbAngle, animationDt);
+            updateCelestialBody(earth, sun.position, orbAngle, animationDt);
+            updateCelestialBody(mars, sun.position, orbAngle, animationDt);
+            updateCelestialBody(jupiter, sun.position, orbAngle, animationDt);
+            updateCelestialBody(saturn, sun.position, orbAngle, animationDt);
+            updateCelestialBody(uranus, sun.position, orbAngle, animationDt);
+            updateCelestialBody(neptune, sun.position, orbAngle, animationDt);
+            updateCelestialBody(moon, earth.position, orbAngle, animationDt);
+        }
 
         // Update comets
         updateComet(halleysComet, animationDt, sun.position);
@@ -1643,19 +1843,42 @@ PlanetRing saturnRings = createSaturnRings();
             moon.scale.x  // Add moon radius for shadow calculations
         };
 
-        // Render all celestial bodies in order from sun outward
-        renderCelestialBody(sun, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, true);
-        renderCelestialBody(mercury, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        renderCelestialBody(venus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        renderCelestialBody(earth, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        renderCelestialBody(mars, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        renderCelestialBody(jupiter, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        renderCelestialBody(saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        // Render Saturn's rings immediately after Saturn
-        renderPlanetRings(saturnRings, saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position);
-        renderCelestialBody(uranus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        renderCelestialBody(neptune, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
-        renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        // Render all celestial bodies in order from sun outward - BUT ONLY IF VISIBLE
+        // Check if each body is large enough to be visible (scale > 0.01f means visible)
+        if (sun.scale.x > 0.01f) {
+            renderCelestialBody(sun, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, true);
+        }
+        if (mercury.scale.x > 0.01f) {
+            renderCelestialBody(mercury, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        if (venus.scale.x > 0.01f) {
+            renderCelestialBody(venus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        if (earth.scale.x > 0.01f) {
+            renderCelestialBody(earth, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        if (mars.scale.x > 0.01f) {
+            renderCelestialBody(mars, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        if (jupiter.scale.x > 0.01f) {
+            renderCelestialBody(jupiter, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        if (saturn.scale.x > 0.01f) {
+            renderCelestialBody(saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        // Render Saturn's rings immediately after Saturn only if Saturn is visible
+        //if (saturn.scale.x > 0.01f) {
+        //    renderPlanetRings(saturnRings, saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position);
+        //}
+        if (uranus.scale.x > 0.01f) {
+            renderCelestialBody(uranus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        if (neptune.scale.x > 0.01f) {
+            renderCelestialBody(neptune, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
+        if (moon.scale.x > 0.01f) {
+            renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false, planetPositions, planetRadii);
+        }
 
 
         // Render comet trails first (so they appear behind comet heads)
