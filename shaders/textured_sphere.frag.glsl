@@ -7,7 +7,7 @@ out vec4 FragColor;
 
 uniform sampler2D texture1;
 uniform vec3 lightPos;      // Sun's position
-uniform vec3 viewPos;       // Camera position - ADD THIS NEW UNIFORM
+uniform vec3 viewPos;       // Camera position
 uniform bool isSun;         // Whether this object is the sun
 
 // Shadow casting uniforms
@@ -45,7 +45,6 @@ bool isInShadow() {
     return false;
 }
 
-// NEW FUNCTION: Calculate atmospheric glow color based on planet type
 vec3 getAtmosphereColor(vec2 texCoord) {
     // Sample the texture to determine planet type based on dominant colors
     vec4 texColor = texture(texture1, texCoord);
@@ -99,7 +98,7 @@ void main() {
         float ambientStrength = 0.1;
         vec3 ambient = ambientStrength * vec3(1.0);
         
-        // NEW: Calculate atmospheric rim lighting
+        // Calculate atmospheric rim lighting
         float rim = 1.0 - max(dot(normal, viewDir), 0.0);
         rim = pow(rim, 3.0); // Make rim more focused
         
