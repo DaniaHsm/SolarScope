@@ -7,9 +7,17 @@ out vec4 FragColor;
 uniform sampler2D texture1;
 uniform vec3 lightPos;  // Light position in world space
 uniform vec3 viewPos;   // Camera position
+uniform vec3 selectionColor;  // Selection indicator color
 
 void main()
 {
+    // If selection color is provided, use it directly (for selection indicator)
+    if (selectionColor != vec3(0.0)) {
+        FragColor = vec4(selectionColor, 1.0);
+        return;
+    }
+
+    // Regular rendering for celestial bodies
     // Ambient lighting
     float ambientStrength = 0.2;
     vec3 ambient = ambientStrength * vec3(1.0);

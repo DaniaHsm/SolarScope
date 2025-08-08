@@ -1,7 +1,7 @@
-#include <GL/glew.h>		// OpenGL functions
-#include <GLFW/glfw3.h>		// GLFW for window management
+#include <GL/glew.h>    // OpenGL functions
+#include <GLFW/glfw3.h> // GLFW for window management
 #include <fstream>
-#include <glm/common.hpp>	// Math functions
+#include <glm/common.hpp> // Math functions
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
@@ -12,9 +12,12 @@
 #define GLEW_STATIC 1
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-#include <assimp/Importer.hpp>	// 3D model management
+#include <assimp/Importer.hpp> // 3D model management
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+
+GLuint loadTexture(const char *path);
+
 
 using namespace glm;
 using namespace std;
@@ -33,13 +36,7 @@ GLFWwindow *initializeGLFW()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    GLFWwindow *window = glfwCreateWindow(
-		800, 
-		600, 
-		"Comp371 - Project Assignment", 
-		NULL, 
-		NULL
-	);
+    GLFWwindow *window = glfwCreateWindow(800, 600, "Comp371 - Project Assignment", NULL, NULL);
 
     if (window == NULL)
     {
@@ -75,6 +72,8 @@ struct ShaderPrograms
     int base;
     unsigned int skybox;
     unsigned int orb;
+    unsigned int ui;
+    unsigned int selection;  // For selection indicator
 };
 
 // Helper function to read .glsl files
@@ -100,6 +99,16 @@ std::string getVertexShaderSource()
 std::string getFragmentShaderSource()
 {
     return readFile("shaders/shader.frag.glsl");
+}
+
+std::string getSelectionVertexShaderSource()
+{
+    return readFile("shaders/selection.vert.glsl");
+}
+
+std::string getSelectionFragmentShaderSource()
+{
+    return readFile("shaders/selection.frag.glsl");
 }
 
 int compileVertexAndFragShaders()
@@ -223,6 +232,94 @@ GLuint compileTexturedSphereShader()
     return program;
 }
 
+std::string getUIVertexShaderSource()
+{
+    return R"(
+#version 330 core
+layout (location = 0) in vec2 aPos;
+layout (location = 1) in vec2 aTexCoord;
+
+out vec2 TexCoord;
+
+uniform mat4 projection;
+
+void main() {
+    gl_Position = projection * vec4(aPos.x, aPos.y, 0.0, 1.0);
+    TexCoord = aTexCoord;
+}
+)";
+}
+
+std::string getUIFragmentShaderSource()
+{
+    return R"(
+#version 330 core
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+uniform sampler2D ourTexture;
+uniform float alpha;
+
+void main() {
+    vec4 texColor = texture(ourTexture, TexCoord);
+    if(texColor.a < 0.1) {
+        discard;
+    }
+    FragColor = vec4(texColor.rgb, texColor.a * alpha);
+}
+)";
+}
+
+GLuint compileUIShader()
+{
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    std::string vertexShaderStr = getUIVertexShaderSource();
+    const char *vertexShaderSource = vertexShaderStr.c_str();
+    glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
+    glCompileShader(vertexShader);
+
+    // Check for compilation errors
+    int success;
+    char infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+    }
+
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    std::string fragmentShaderStr = getUIFragmentShaderSource();
+    const char *fragmentShaderSource = fragmentShaderStr.c_str();
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
+    glCompileShader(fragmentShader);
+
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
+        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+    }
+
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success)
+    {
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return program;
+}
+
 ShaderPrograms setupShaderPrograms()
 {
     ShaderPrograms shaders;
@@ -236,6 +333,29 @@ ShaderPrograms setupShaderPrograms()
 
     shaders.orb = compileTexturedSphereShader();
 
+    shaders.ui = compileUIShader();
+
+    // Compile selection indicator shader
+    int selectionVertexShader = glCreateShader(GL_VERTEX_SHADER);
+    std::string selectionVertexSource = readFile("shaders/selection.vert.glsl");
+    const char* selectionVertexSourcePtr = selectionVertexSource.c_str();
+    glShaderSource(selectionVertexShader, 1, &selectionVertexSourcePtr, NULL);
+    glCompileShader(selectionVertexShader);
+
+    int selectionFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    std::string selectionFragmentSource = readFile("shaders/selection.frag.glsl");
+    const char* selectionFragmentSourcePtr = selectionFragmentSource.c_str();
+    glShaderSource(selectionFragmentShader, 1, &selectionFragmentSourcePtr, NULL);
+    glCompileShader(selectionFragmentShader);
+
+    shaders.selection = glCreateProgram();
+    glAttachShader(shaders.selection, selectionVertexShader);
+    glAttachShader(shaders.selection, selectionFragmentShader);
+    glLinkProgram(shaders.selection);
+
+    glDeleteShader(selectionVertexShader);
+    glDeleteShader(selectionFragmentShader);
+
     return shaders;
 }
 
@@ -244,14 +364,14 @@ ShaderPrograms setupShaderPrograms()
 // - Handles position, orientation, and movement speeds
 struct Camera
 {
-    vec3 position;       	// Camera position in 3D space
-    vec3 lookAt;         	// Direction the camera is facing
-    vec3 up;             	// Up vector for camera orientation
-    float speed;         	// Normal movement speed
-    float fastSpeed;    	// Sprint movement speed
-    float horizontalAngle;  // Left/right rotation
-    float verticalAngle;    // Up/down rotation
-    bool firstPerson;   	// Toggle between first/third person
+    vec3 position;         // Camera position in 3D space
+    vec3 lookAt;           // Direction the camera is facing
+    vec3 up;               // Up vector for camera orientation
+    float speed;           // Normal movement speed
+    float fastSpeed;       // Sprint movement speed
+    float horizontalAngle; // Left/right rotation
+    float verticalAngle;   // Up/down rotation
+    bool firstPerson;      // Toggle between first/third person
 };
 
 // Initializes camera with default settings:
@@ -292,108 +412,244 @@ mat4 updateViewMatrix(const Camera &camera)
     }
 }
 
-int createVertexBufferObject()
-{
-    vec3 vertexArray[] = {
-		vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, -0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
-
-        vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(-0.5f, 0.5f, -0.5f),  vec3(0.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, 0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f),
-
-        vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 1.0f), 
-		vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f),
-
-        vec3(-0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f), 
-		vec3(0.5f, -0.5f, 0.5f), vec3(0.0f, 1.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, 0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f), 
-		vec3(0.5f, -0.5f, 0.5f), vec3(1.0f, 0.0f, 1.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f),
-
-        vec3(0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, -0.5f), vec3(1.0f, 1.0f, 0.0f), 
-		vec3(-0.5f, 0.5f, 0.5f), vec3(1.0f, 1.0f, 0.0f)
-	};
-
-    GLuint vertexArrayObject;
-    glGenVertexArrays(1, &vertexArrayObject);
-    glBindVertexArray(vertexArrayObject);
-
-    GLuint vertexBufferObject;
-    glGenBuffers(1, &vertexBufferObject);
-    glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertexArray), vertexArray, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(
-		0, 
-		3, 
-		GL_FLOAT, 
-		GL_FALSE, 
-		2 * sizeof(vec3), 
-		(void *)0
-	);
-    glEnableVertexAttribArray(0);
-
-
-    glVertexAttribPointer(
-		1, 
-		3, 
-		GL_FLOAT, 
-		GL_FALSE, 
-		2 * sizeof(vec3), 
-		(void *)sizeof(vec3)
-	);
-    glEnableVertexAttribArray(1);
-
-
-    return vertexBufferObject;
-}
-
 // Represents a celestial body (sun, planet, or moon):
 // - Handles rendering properties (VAO, texture, indices)
 // - Controls position, scale, and rotation
 // - Manages orbital movement parameters
 struct CelestialBody
 {
-    GLuint vao;          		// Vertex Array Object for the sphere
-    GLuint texture;      		// Body's surface texture
-    unsigned int indexCount;  	// Number of indices for rendering
-    vec3 position;       		// Current position in space
-    vec3 scale;          		// Size of the celestial body
-    float rotationAngle; 		// Current rotation around its axis
-    float rotationSpeed; 		// Speed of rotation around its axis
-    float orbitRadius;   		// Distance from the center of orbit
-    float orbitSpeed;    		// Speed of orbital movement
+    GLuint vao;              // Vertex Array Object for the sphere
+    GLuint texture;          // Body's surface texture
+    unsigned int indexCount; // Number of indices for rendering
+    vec3 position;           // Current position in space
+    vec3 scale;              // Size of the celestial body
+    float rotationAngle;     // Current rotation around its axis
+    float rotationSpeed;     // Speed of rotation around its axis
+    float orbitRadius;       // Distance from the center of orbit
+    float orbitSpeed;        // Speed of orbital movement
 };
+
+struct PlanetInfo
+{
+    string name;
+    string description;
+    string facts[3]; // Array of 3 key facts
+
+    PlanetInfo() = default;
+    PlanetInfo(const string &n, const string &desc, const string &f1, const string &f2, const string &f3)
+        : name(n), description(desc)
+    {
+        facts[0] = f1;
+        facts[1] = f2;
+        facts[2] = f3;
+    }
+};
+
+struct InfoPanel
+{
+    bool visible;
+    bool wasIPressed;
+    PlanetInfo currentInfo;
+    float fadeAlpha;
+    GLuint currentTexture;         // NEW: Current planet info texture
+    vector<GLuint> planetTextures; // NEW: All planet info textures
+    vector<string> planetNames;    // NEW: Planet names for texture mapping
+
+    InfoPanel() : visible(false), wasIPressed(false), fadeAlpha(0.0f), currentTexture(0)
+    {
+    }
+
+    void loadPlanetTextures()
+    {
+        planetNames = {"sun", "mercury", "venus", "earth", "moon", "mars", "jupiter", "saturn", "uranus", "neptune"};
+
+        for (const string &planetName : planetNames)
+        {
+            string texturePath = "textures/planet_info/" + planetName + "_info.png";
+            std::cout << "Attempting to load: " << texturePath << std::endl;
+
+            GLuint texture = loadTexture(texturePath.c_str());
+            if (texture == 0)
+            {
+                std::cout << "Warning: Failed to load planet info texture for " << planetName << std::endl;
+                // Try a fallback texture - you can use any existing texture as fallback
+                texture = loadTexture("textures/default.png"); // Make sure you have a default texture
+                if (texture == 0)
+                {
+                    // If no default texture, try using the sun texture as fallback
+                    texture = loadTexture("textures/sun.jpg");
+                }
+            }
+            else
+            {
+                std::cout << "Successfully loaded texture for " << planetName << " with ID: " << texture << std::endl;
+            }
+            planetTextures.push_back(texture);
+        }
+    }
+
+    void show(const PlanetInfo &info)
+    {
+        currentInfo = info;
+        visible = true;
+        fadeAlpha = 1.0f;
+
+        // Find the matching texture for this planet
+        for (size_t i = 0; i < planetNames.size(); i++)
+        {
+            string infoNameLower = info.name;
+            transform(infoNameLower.begin(), infoNameLower.end(), infoNameLower.begin(), ::tolower);
+
+            if (infoNameLower == planetNames[i])
+            {
+                currentTexture = planetTextures[i];
+                std::cout << "Displaying " << info.name << " information on screen" << std::endl;
+                return;
+            }
+        }
+
+        // Fallback to first texture if no match found
+        if (!planetTextures.empty())
+        {
+            currentTexture = planetTextures[0];
+        }
+    }
+
+    void hide()
+    {
+        visible = false;
+        fadeAlpha = 0.0f;
+        currentTexture = 0;
+    }
+
+    void toggle(const PlanetInfo &info)
+    {
+        if (visible)
+        {
+            hide();
+        }
+        else
+        {
+            show(info);
+        }
+    }
+
+    void update(float dt)
+    {
+        if (visible && fadeAlpha < 1.0f)
+        {
+            fadeAlpha = std::min(1.0f, fadeAlpha + dt * 3.0f);
+        }
+        else if (!visible && fadeAlpha > 0.0f)
+        {
+            fadeAlpha = std::max(0.0f, fadeAlpha - dt * 3.0f);
+        }
+    }
+
+    void handleInput(GLFWwindow *window, const PlanetInfo &currentPlanetInfo)
+    {
+        bool iPressed = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
+
+        if (iPressed && !wasIPressed)
+        {
+            toggle(currentPlanetInfo);
+            std::cout << (visible ? "Planet info shown on screen" : "Planet info hidden") << std::endl;
+        }
+
+        wasIPressed = iPressed;
+    }
+};
+
+// Planet Selection System
+struct PlanetSelector
+{
+    vector<CelestialBody *> celestialBodies;
+    vector<string> celestialNames;
+    vector<PlanetInfo> planetInfos; // NEW: Store planet information
+    int selectedIndex;
+    bool was3Pressed;
+
+    PlanetSelector() : selectedIndex(0), was3Pressed(false)
+    {
+    }
+
+    void addCelestialBody(CelestialBody *body, const string &name, const PlanetInfo &info)
+    {
+        celestialBodies.push_back(body);
+        celestialNames.push_back(name);
+        planetInfos.push_back(info);
+    }
+
+    void nextSelection()
+    {
+        selectedIndex = (selectedIndex + 1) % celestialBodies.size();
+        cout << "Selected: " << celestialNames[selectedIndex] << endl;
+    }
+
+    CelestialBody *getSelectedBody()
+    {
+        if (selectedIndex < celestialBodies.size())
+        {
+            return celestialBodies[selectedIndex];
+        }
+        return nullptr;
+    }
+
+    string getSelectedName()
+    {
+        if (selectedIndex < celestialNames.size())
+        {
+            return celestialNames[selectedIndex];
+        }
+        return "Unknown";
+    }
+
+    PlanetInfo getSelectedInfo()
+    {
+        if (selectedIndex < planetInfos.size())
+        {
+            return planetInfos[selectedIndex];
+        }
+        return PlanetInfo("Unknown", "No information available", "", "", "");
+    }
+};
+
+// Black hole structure with proper functionality
+struct BlackHole
+{
+    vec3 position;
+    float strength;
+    bool active;
+    float activationTime;
+    vector<vec3> originalPositions; // Positions when X was pressed (for black hole effect)
+    vector<vec3> originalScales;    // Scales when X was pressed (for black hole effect)
+    vector<vec3> resetPositions;    // Orbital positions to return to when R is pressed
+    vector<vec3> resetScales;       // Original scales to return to when R is pressed
+
+    // Constructor
+    BlackHole() : position(vec3(0.0f)), strength(0.0f), active(false), activationTime(0.0f)
+    {
+    }
+};
+
+// Function to initialize black hole with original positions
+BlackHole createBlackHole(vec3 center, const vector<CelestialBody *> &bodies)
+{
+    BlackHole blackHole;
+    blackHole.position = center;
+    blackHole.strength = 0.0f;
+    blackHole.active = false;
+    blackHole.activationTime = 0.0f;
+
+    // Store original positions and scales
+    for (const auto &body : bodies)
+    {
+        blackHole.originalPositions.push_back(body->position);
+        blackHole.originalScales.push_back(body->scale);
+    }
+
+    return blackHole;
+}
 
 // Saturn's rings structure
 struct PlanetRing
@@ -410,14 +666,13 @@ struct PlanetRing
 // - rings: vertical divisions from pole to pole
 // - sectors: horizontal divisions around the sphere
 // - Generates proper UV mapping for textures
-void generateSphereVerticesAndUVs(
-	unsigned int rings,
-    unsigned int sectors,
-    std::vector<vec3> &vertices,
-	std::vector<vec2> &uvs)
+void generateSphereVerticesAndUVs(unsigned int rings,
+                                  unsigned int sectors,
+                                  std::vector<vec3> &vertices,
+                                  std::vector<vec2> &uvs)
 {
-    float const R = 1.0f / float(rings - 1);    // Ring step
-    float const S = 1.0f / float(sectors - 1);  // Sector step
+    float const R = 1.0f / float(rings - 1);   // Ring step
+    float const S = 1.0f / float(sectors - 1); // Sector step
 
     for (unsigned int r = 0; r < rings; ++r)
     {
@@ -440,9 +695,7 @@ void generateSphereVerticesAndUVs(
 // Creates triangles between adjacent rings and sectors:
 // - Builds triangles in counter-clockwise order
 // - Ensures proper face winding for correct rendering
-void generateSphereIndices(unsigned int rings, 
-	unsigned int sectors, 
-	std::vector<unsigned int> &indices)
+void generateSphereIndices(unsigned int rings, unsigned int sectors, std::vector<unsigned int> &indices)
 {
     for (unsigned int r = 0; r < rings - 1; ++r)
     {
@@ -469,10 +722,9 @@ void generateSphereIndices(unsigned int rings,
 // - Vertex Array Object (VAO)
 // - Vertex Buffer Objects (VBOs) for positions and UVs
 // - Element Buffer Object (EBO) for indices
-GLuint setupSphereBuffers(
-	const std::vector<vec3> &vertices,
-    const std::vector<vec2> &uvs,
-    const std::vector<unsigned int> &indices)
+GLuint setupSphereBuffers(const std::vector<vec3> &vertices,
+                          const std::vector<vec2> &uvs,
+                          const std::vector<unsigned int> &indices)
 {
     GLuint vao, vbo[2], ebo;
     glGenVertexArrays(1, &vao);
@@ -481,11 +733,8 @@ GLuint setupSphereBuffers(
     glGenBuffers(2, vbo);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-    glBufferData(GL_ARRAY_BUFFER, 
-		vertices.size() * sizeof(vec3), 
-		&vertices[0], GL_STATIC_DRAW
-	);
-	
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
+
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
     glEnableVertexAttribArray(0);
 
@@ -495,19 +744,12 @@ GLuint setupSphereBuffers(
     glEnableVertexAttribArray(1);
     glGenBuffers(1, &ebo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(
-		GL_ELEMENT_ARRAY_BUFFER, 
-		indices.size() * sizeof(unsigned int), 
-		&indices[0], GL_STATIC_DRAW
-	);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
 
     return vao;
 }
 
-GLuint createTexturedSphereVAO(
-	unsigned int rings, 
-	unsigned int sectors, 
-	unsigned int &indexCount)
+GLuint createTexturedSphereVAO(unsigned int rings, unsigned int sectors, unsigned int &indexCount)
 {
     std::vector<vec3> vertices;
     std::vector<vec2> uvs;
@@ -524,15 +766,16 @@ GLuint loadTexture(const char *path)
 {
     GLuint textureID;
     glGenTextures(1, &textureID);
-    
+
     std::cout << "Loading texture from path: " << path << std::endl;
-    
+
     int width, height, nrChannels;
     unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
     if (data)
     {
-        std::cout << "Texture loaded successfully: " << width << "x" << height << " channels: " << nrChannels << std::endl;
-        
+        std::cout << "Texture loaded successfully: " << width << "x" << height << " channels: " << nrChannels
+                  << std::endl;
+
         GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
         glBindTexture(GL_TEXTURE_2D, textureID);
         glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
@@ -541,13 +784,14 @@ GLuint loadTexture(const char *path)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        
+
         // Check for OpenGL errors
         GLenum err;
-        while ((err = glGetError()) != GL_NO_ERROR) {
+        while ((err = glGetError()) != GL_NO_ERROR)
+        {
             std::cerr << "OpenGL error in loadTexture: " << err << std::endl;
         }
-        
+
         stbi_image_free(data);
     }
     else
@@ -555,17 +799,16 @@ GLuint loadTexture(const char *path)
         std::cerr << "Failed to load texture: " << path << std::endl;
         std::cerr << "STB Error: " << stbi_failure_reason() << std::endl;
         stbi_image_free(data);
-        return 0;  // Return 0 to indicate failure
+        return 0; // Return 0 to indicate failure
     }
     return textureID;
 }
 
-CelestialBody createCelestialBody(
-	const char *texturePath,
-    float scale,
-    float orbitRadius,
-    float orbitSpeed,
-	float rotationSpeed)
+CelestialBody createCelestialBody(const char *texturePath,
+                                  float scale,
+                                  float orbitRadius,
+                                  float orbitSpeed,
+                                  float rotationSpeed)
 {
     CelestialBody body;
     body.scale = vec3(scale);
@@ -581,36 +824,209 @@ CelestialBody createCelestialBody(
     return body;
 }
 
+// Add these structures right after your CelestialBody struct
+
+// Represents a point in the comet's trail
+struct TrailPoint
+{
+    vec3 position;
+    float age;        // How old this trail point is (for fading)
+    float brightness; // Brightness based on distance from sun
+};
+
+// Comet with elliptical orbit and particle trail
+struct Comet
+{
+    CelestialBody body;            // Reuse existing celestial body for the head
+    std::vector<TrailPoint> trail; // Trail points
+    float orbitAngle;              // Current angle in elliptical orbit
+    float eccentricity;            // How elliptical the orbit is (0 = circle, 0.9 = very elliptical)
+    float semiMajorAxis;           // Size of the orbit
+    vec3 orbitCenter;              // Center point of orbit
+    GLuint trailVAO;               // VAO for trail rendering
+    GLuint trailVBO;               // VBO for trail vertices
+    int maxTrailPoints;            // Maximum trail length
+    float lastTrailUpdate;         // Time tracking for trail updates
+
+    void updateTrail(float currentTime, const vec3 &sunPosition)
+    {
+        // Add new trail point every 0.1 seconds
+        if (currentTime - lastTrailUpdate > 0.1f)
+        {
+            TrailPoint newPoint;
+            newPoint.position = body.position;
+            newPoint.age = 0.0f;
+
+            // Brightness based on distance from sun (closer = brighter trail)
+            float distanceFromSun = length(body.position - sunPosition);
+            newPoint.brightness = 1.0f / (1.0f + distanceFromSun * 0.1f);
+
+            trail.insert(trail.begin(), newPoint);
+
+            // Remove old trail points
+            if (trail.size() > maxTrailPoints)
+            {
+                trail.pop_back();
+            }
+
+            lastTrailUpdate = currentTime;
+        }
+
+        // Age all trail points
+        for (auto &point : trail)
+        {
+            point.age += 0.016f; // Approximate 60fps
+        }
+
+        updateTrailVBO();
+    }
+
+    void updateTrailVBO()
+    {
+        if (trail.empty())
+            return;
+
+        std::vector<vec3> vertices;
+        std::vector<vec3> colors;
+
+        // Create line segments for the trail
+        for (size_t i = 0; i < trail.size(); ++i)
+        {
+            vertices.push_back(trail[i].position);
+
+            // Color fades from bright blue/white to dark blue based on age
+            float fade = 1.0f - (trail[i].age / 10.0f); // Fade over 10 seconds
+            fade = std::max(0.0f, fade);
+
+            // Comet tail color - blue/white mix
+            vec3 color = vec3(0.7f + 0.3f * trail[i].brightness, 0.8f + 0.2f * trail[i].brightness, 1.0f) * fade;
+            colors.push_back(color);
+        }
+
+        glBindVertexArray(trailVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, trailVBO);
+        glBufferData(GL_ARRAY_BUFFER,
+                     vertices.size() * sizeof(vec3) + colors.size() * sizeof(vec3),
+                     nullptr,
+                     GL_DYNAMIC_DRAW);
+
+        // Upload vertices
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(vec3), &vertices[0]);
+
+        // Upload colors
+        glBufferSubData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), colors.size() * sizeof(vec3), &colors[0]);
+
+        // Set up vertex attributes
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
+        glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void *)(vertices.size() * sizeof(vec3)));
+        glEnableVertexAttribArray(1);
+    }
+};
+
+// Function to create a comet
+Comet createComet(const char *texturePath, const vec3 &orbitCenter, float semiMajorAxis, float eccentricity)
+{
+    Comet comet;
+
+    // Create the comet head using existing celestial body system
+    comet.body = createCelestialBody(texturePath, 0.05f, 0.0f, 0.0f, 10.0f);
+
+    // Set up orbital parameters
+    comet.orbitCenter = orbitCenter;
+    comet.semiMajorAxis = semiMajorAxis;
+    comet.eccentricity = eccentricity;
+    comet.orbitAngle = 0.0f;
+    comet.maxTrailPoints = 150; // Long, visible trail
+    comet.lastTrailUpdate = 0.0f;
+
+    // Set up trail rendering
+    glGenVertexArrays(1, &comet.trailVAO);
+    glGenBuffers(1, &comet.trailVBO);
+
+    return comet;
+}
+
+// Function to update comet position in elliptical orbit
+void updateComet(Comet &comet, float dt, const vec3 &sunPosition)
+{
+    // Update orbital position
+    comet.orbitAngle += 0.5f * dt; // Slow orbital speed
+
+    // Calculate elliptical orbit position
+    float a = comet.semiMajorAxis; // Semi-major axis
+    float e = comet.eccentricity;  // Eccentricity
+
+    // Elliptical orbit math
+    float r = a * (1.0f - e * e) / (1.0f + e * cos(comet.orbitAngle));
+    float x = r * cos(comet.orbitAngle);
+    float z = r * sin(comet.orbitAngle);
+
+    comet.body.position = comet.orbitCenter + vec3(x, 0.0f, z);
+
+    // Update rotation
+    comet.body.rotationAngle += comet.body.rotationSpeed * dt;
+
+    // Update trail
+    comet.updateTrail(glfwGetTime(), sunPosition);
+}
+
+// Function to render comet trail
+void renderCometTrail(const Comet &comet, GLuint shader, const mat4 &viewMatrix, const mat4 &projectionMatrix)
+{
+    if (comet.trail.size() < 2)
+        return;
+
+    glUseProgram(shader);
+    glBindVertexArray(comet.trailVAO);
+
+    // Set matrices
+    mat4 worldMatrix = mat4(1.0f); // Identity - trail points are in world space
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
+
+    // Enable blending for trail transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Draw trail as line strip
+    glDrawArrays(GL_LINE_STRIP, 0, comet.trail.size());
+
+    glDisable(GL_BLEND);
+}
+
 // Function to create Saturn's rings
 PlanetRing createSaturnRings()
 {
     PlanetRing ring;
-    
+
     // Create ring geometry (simplified as a flat disk with hole)
     std::vector<vec3> vertices;
     std::vector<vec2> uvs;
     std::vector<unsigned int> indices;
-    
-    float innerRadius = 1.2f;  // Inner edge of rings
-    float outerRadius = 2.0f;  // Outer edge of rings
-    int segments = 64;         // Number of segments around the ring
-    
+
+    float innerRadius = 1.2f; // Inner edge of rings
+    float outerRadius = 2.0f; // Outer edge of rings
+    int segments = 64;        // Number of segments around the ring
+
     // Generate ring vertices
     for (int i = 0; i <= segments; ++i)
     {
         float angle = (float)i / segments * 2.0f * 3.14159f;
         float cosA = cos(angle);
         float sinA = sin(angle);
-        
+
         // Inner vertex
         vertices.push_back(vec3(innerRadius * cosA, 0.0f, innerRadius * sinA));
         uvs.push_back(vec2(0.0f, (float)i / segments));
-        
+
         // Outer vertex
         vertices.push_back(vec3(outerRadius * cosA, 0.0f, outerRadius * sinA));
         uvs.push_back(vec2(1.0f, (float)i / segments));
     }
-    
+
     // Generate indices for ring triangles
     for (int i = 0; i < segments * 2; i += 2)
     {
@@ -618,19 +1034,19 @@ PlanetRing createSaturnRings()
         indices.push_back(i);
         indices.push_back(i + 1);
         indices.push_back(i + 2);
-        
+
         // Second triangle
         indices.push_back(i + 1);
         indices.push_back(i + 3);
         indices.push_back(i + 2);
     }
-    
+
     ring.vao = setupSphereBuffers(vertices, uvs, indices);
     ring.indexCount = indices.size();
     ring.texture = loadTexture("textures/saturn_rings.png"); // Semi-transparent ring texture
     ring.innerRadius = innerRadius;
     ring.outerRadius = outerRadius;
-    
+
     return ring;
 }
 
@@ -654,28 +1070,20 @@ unsigned int loadCubemap(std::vector<std::string> faces)
     int width, height, nrChannels;
     for (unsigned int i = 0; i < faces.size(); i++)
     {
-        unsigned char *data = stbi_load(
-			faces[i].c_str(), 
-			&width, 
-			&height, 
-			&nrChannels, 
-			0
-		);
+        unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
 
         if (data)
         {
-            glTexImage2D(
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 
-       			0, 
-                GL_RGB, 
-		    	width, 
-		    	height, 
-		    	0, 
-		    	GL_RGB, 
-		    	GL_UNSIGNED_BYTE, 
-		    	data 
-			);
-			stbi_image_free(data);
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                         0,
+                         GL_RGB,
+                         width,
+                         height,
+                         0,
+                         GL_RGB,
+                         GL_UNSIGNED_BYTE,
+                         data);
+            stbi_image_free(data);
         }
         else
         {
@@ -696,25 +1104,23 @@ Skybox createSkybox(const std::vector<std::string> &faces)
 {
     Skybox skybox;
 
-    float vertices[] = {
-		-1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f,
-        1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f,
+    float vertices[] = {-1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f,
+                        1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f,
 
-        -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f,
-        -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,
+                        -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f,
+                        -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,
 
-        1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f,
+                        1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
+                        1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f,
 
-        -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
+                        -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+                        1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
 
-        -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f,
+                        -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,
+                        1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f,
 
-        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f,
-        1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f
-	};
+                        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f,
+                        1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f};
 
     glGenVertexArrays(1, &skybox.vao);
     glGenBuffers(1, &skybox.vbo);
@@ -730,30 +1136,16 @@ Skybox createSkybox(const std::vector<std::string> &faces)
     return skybox;
 }
 
-void renderSkybox(
-	const Skybox &skybox, 
-	GLuint shader, 
-	const mat4 &viewMatrix, 
-	const mat4 &projectionMatrix)
+void renderSkybox(const Skybox &skybox, GLuint shader, const mat4 &viewMatrix, const mat4 &projectionMatrix)
 {
     glDepthFunc(GL_LEQUAL);
     glUseProgram(shader);
 
     mat4 skyboxView = mat4(mat3(viewMatrix));
 
-    glUniformMatrix4fv(
-		glGetUniformLocation(shader, "view"), 
-		1, 
-		GL_FALSE, 
-		&skyboxView[0][0]
-	);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "view"), 1, GL_FALSE, &skyboxView[0][0]);
 
-    glUniformMatrix4fv(
-		glGetUniformLocation(shader, "projection"), 
-		1, 
-		GL_FALSE, 
-		&projectionMatrix[0][0]
-	);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, &projectionMatrix[0][0]);
 
     glBindVertexArray(skybox.vao);
     glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.texture);
@@ -762,136 +1154,423 @@ void renderSkybox(
     glDepthFunc(GL_LESS);
 }
 
-void updateCelestialBody(
-	CelestialBody &body, 
-	const vec3 &centerPosition, 
-	float baseAngle, 
-	float dt)
+// Function to render a simple colored rectangle background for info panel
+void renderInfoBackground(GLuint shader, int windowWidth, int windowHeight, float alpha)
+{
+    // Enable blending for transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST); // Render on top of everything
+
+    glUseProgram(shader);
+
+    // Set up orthographic projection for 2D overlay
+    mat4 orthoProjection = glm::ortho(0.0f, (float)windowWidth, 0.0f, (float)windowHeight, -1.0f, 1.0f);
+    mat4 viewMatrix = mat4(1.0f); // Identity
+
+    // Panel dimensions and position (top-right corner)
+    float panelWidth = 300.0f;
+    float panelHeight = 180.0f;
+    float margin = 20.0f;
+    float panelX = windowWidth - panelWidth - margin;
+    float panelY = windowHeight - panelHeight - margin;
+
+    // Create a simple quad for the background
+    float vertices[] = {
+        // Positions        // Colors (dark blue with transparency)
+        panelX,
+        panelY,
+        0.1f,
+        0.1f,
+        0.3f, // Bottom-left
+        panelX + panelWidth,
+        panelY,
+        0.1f,
+        0.1f,
+        0.3f, // Bottom-right
+        panelX + panelWidth,
+        panelY + panelHeight,
+        0.1f,
+        0.1f,
+        0.3f, // Top-right
+        panelX,
+        panelY + panelHeight,
+        0.1f,
+        0.1f,
+        0.3f // Top-left
+    };
+
+    unsigned int indices[] = {
+        0,
+        1,
+        2, // First triangle
+        2,
+        3,
+        0 // Second triangle
+    };
+
+    static GLuint VAO = 0, VBO = 0, EBO = 0;
+
+    // Create buffers if not already created
+    if (VAO == 0)
+    {
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+        glGenBuffers(1, &EBO);
+    }
+
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    // Color attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Set matrices
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &orthoProjection[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &mat4(1.0f)[0][0]);
+
+    // Set alpha for fading
+    glUniform1f(glGetUniformLocation(shader, "alpha"), alpha * 0.8f); // Semi-transparent
+
+    // Draw the quad
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    glEnable(GL_DEPTH_TEST); // Re-enable depth testing
+    glDisable(GL_BLEND);
+}
+
+// Function to display info as overlay text
+void renderInfoPanelOnScreen(const InfoPanel &panel, GLuint uiShader, int windowWidth, int windowHeight)
+{
+    if (panel.fadeAlpha <= 0.0f)
+        return;
+
+    // Show default message if no planet is selected or no texture
+    if (panel.currentTexture == 0)
+    {
+        std::cout << "Info Panel: No planet selected. Press '3' to enter planet selection mode." << std::endl;
+        return;
+    }
+
+    // Enable blending for transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+
+    glUseProgram(uiShader);
+
+    // Set up orthographic projection for 2D overlay
+    mat4 orthoProjection = glm::ortho(0.0f, (float)windowWidth, 0.0f, (float)windowHeight);
+
+    // Panel dimensions and position (top-right corner)
+    float panelWidth = 400.0f;
+    float panelHeight = 250.0f;
+    float margin = 20.0f;
+    float panelX = windowWidth - panelWidth - margin;
+    float panelY = windowHeight - panelHeight - margin;
+
+    // Create textured quad vertices
+    float vertices[] = {
+        // Positions                           // Texture Coords (Fixed horizontal only)
+        panelX,
+        panelY,
+        0.0f,
+        1.0f, // Bottom-left -> Bottom-right in texture
+        panelX + panelWidth,
+        panelY,
+        1.0f,
+        1.0f, // Bottom-right -> Bottom-left in texture
+        panelX + panelWidth,
+        panelY + panelHeight,
+        1.0f,
+        0.0f, // Top-right -> Top-left in texture
+        panelX,
+        panelY + panelHeight,
+        0.0f,
+        0.0f // Top-left -> Top-right in texture
+    };
+
+    unsigned int indices[] = {
+        0,
+        1,
+        2, // First triangle
+        2,
+        3,
+        0 // Second triangle
+    };
+
+    static GLuint VAO = 0, VBO = 0, EBO = 0;
+
+    // Create buffers if not already created
+    if (VAO == 0)
+    {
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+        glGenBuffers(1, &EBO);
+    }
+
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    // Texture coordinate attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Bind the planet info texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, panel.currentTexture);
+    glUniform1i(glGetUniformLocation(uiShader, "ourTexture"), 0);
+
+    // Set projection matrix and alpha
+    glUniformMatrix4fv(glGetUniformLocation(uiShader, "projection"), 1, GL_FALSE, &orthoProjection[0][0]);
+    glUniform1f(glGetUniformLocation(uiShader, "alpha"), panel.fadeAlpha);
+
+    // Draw the textured quad
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+}
+
+
+int createVertexBufferObject()
+{
+    vec3 vertexArray[] = {vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f),    vec3(-0.5f, -0.5f, 0.5f),
+                          vec3(1.0f, 0.0f, 0.0f),    vec3(-0.5f, 0.5f, 0.5f),   vec3(1.0f, 0.0f, 0.0f),
+
+                          vec3(-0.5f, -0.5f, -0.5f), vec3(1.0f, 0.0f, 0.0f),    vec3(-0.5f, 0.5f, 0.5f),
+                          vec3(1.0f, 0.0f, 0.0f),    vec3(-0.5f, 0.5f, -0.5f),  vec3(1.0f, 0.0f, 0.0f),
+
+                          vec3(0.5f, 0.5f, -0.5f),   vec3(0.0f, 0.0f, 1.0f),    vec3(-0.5f, -0.5f, -0.5f),
+                          vec3(0.0f, 0.0f, 1.0f),    vec3(-0.5f, 0.5f, -0.5f),  vec3(0.0f, 0.0f, 1.0f),
+
+                          vec3(0.5f, 0.5f, -0.5f),   vec3(0.0f, 0.0f, 1.0f),    vec3(0.5f, -0.5f, -0.5f),
+                          vec3(0.0f, 0.0f, 1.0f),    vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 0.0f, 1.0f),
+
+                          vec3(0.5f, -0.5f, 0.5f),   vec3(0.0f, 1.0f, 1.0f),    vec3(-0.5f, -0.5f, -0.5f),
+                          vec3(0.0f, 1.0f, 1.0f),    vec3(0.5f, -0.5f, -0.5f),  vec3(0.0f, 1.0f, 1.0f),
+
+                          vec3(0.5f, -0.5f, 0.5f),   vec3(0.0f, 1.0f, 1.0f),    vec3(-0.5f, -0.5f, 0.5f),
+                          vec3(0.0f, 1.0f, 1.0f),    vec3(-0.5f, -0.5f, -0.5f), vec3(0.0f, 1.0f, 1.0f),
+
+                          vec3(-0.5f, 0.5f, 0.5f),   vec3(0.0f, 1.0f, 0.0f),    vec3(-0.5f, -0.5f, 0.5f),
+                          vec3(0.0f, 1.0f, 0.0f),    vec3(0.5f, -0.5f, 0.5f),   vec3(0.0f, 1.0f, 0.0f),
+
+                          vec3(0.5f, 0.5f, 0.5f),    vec3(0.0f, 1.0f, 0.0f),    vec3(-0.5f, 0.5f, 0.5f),
+                          vec3(0.0f, 1.0f, 0.0f),    vec3(0.5f, -0.5f, 0.5f),   vec3(0.0f, 1.0f, 0.0f),
+
+                          vec3(0.5f, 0.5f, 0.5f),    vec3(1.0f, 0.0f, 1.0f),    vec3(0.5f, -0.5f, -0.5f),
+                          vec3(1.0f, 0.0f, 1.0f),    vec3(0.5f, 0.5f, -0.5f),   vec3(1.0f, 0.0f, 1.0f),
+
+                          vec3(0.5f, -0.5f, -0.5f),  vec3(1.0f, 0.0f, 1.0f),    vec3(0.5f, 0.5f, 0.5f),
+                          vec3(1.0f, 0.0f, 1.0f),    vec3(0.5f, -0.5f, 0.5f),   vec3(1.0f, 0.0f, 1.0f),
+
+                          vec3(0.5f, 0.5f, 0.5f),    vec3(1.0f, 1.0f, 0.0f),    vec3(0.5f, 0.5f, -0.5f),
+                          vec3(1.0f, 1.0f, 0.0f),    vec3(-0.5f, 0.5f, -0.5f),  vec3(1.0f, 1.0f, 0.0f),
+
+                          vec3(0.5f, 0.5f, 0.5f),    vec3(1.0f, 1.0f, 0.0f),    vec3(-0.5f, 0.5f, -0.5f),
+                          vec3(1.0f, 1.0f, 0.0f),    vec3(-0.5f, 0.5f, 0.5f),   vec3(1.0f, 1.0f, 0.0f)};
+
+    GLuint vertexArrayObject;
+    glGenVertexArrays(1, &vertexArrayObject);
+    glBindVertexArray(vertexArrayObject);
+
+    GLuint vertexBufferObject;
+    glGenBuffers(1, &vertexBufferObject);
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertexArray), vertexArray, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 2 * sizeof(vec3), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 2 * sizeof(vec3), (void *)sizeof(vec3));
+    glEnableVertexAttribArray(1);
+
+    return vertexBufferObject;
+}
+
+void updateCelestialBody(CelestialBody &body, const vec3 &centerPosition, float baseAngle, float dt)
 {
     body.rotationAngle += body.rotationSpeed * dt;
 
     float orbitAngle = baseAngle * body.orbitSpeed;
-    body.position = centerPosition + vec3(body.orbitRadius * cos(radians(orbitAngle)), 
-	0.0f, body.orbitRadius * sin(radians(orbitAngle)));
+    body.position =
+        centerPosition +
+        vec3(body.orbitRadius * cos(radians(orbitAngle)), 0.0f, body.orbitRadius * sin(radians(orbitAngle)));
 }
 
 mat4 getCelestialBodyMatrix(const CelestialBody &body)
 {
-    return translate(
-		mat4(1.0f), 
-		body.position
-	) 
-	* rotate(
-		mat4(1.0f), 
-		radians(body.rotationAngle), 
-		vec3(0.0f, 1.0f, 0.0f)
-	)
-    * rotate(
-        mat4(1.0f),
-        radians(180.0f),
-        vec3(1.0f, 0.0f, 0.0f)
-    )
-	* scale(
-		mat4(1.0f), 
-		body.scale
-	);
+    return translate(mat4(1.0f), body.position) *
+           rotate(mat4(1.0f), radians(body.rotationAngle), vec3(0.0f, 1.0f, 0.0f)) *
+           rotate(mat4(1.0f), radians(180.0f), vec3(1.0f, 0.0f, 0.0f)) * scale(mat4(1.0f), body.scale);
 }
 
-void renderCelestialBody(
-	const CelestialBody &body, 
-    GLuint shader, 
-    const mat4 &viewMatrix, 
-    const mat4 &projectionMatrix, 
-    const vec3 &lightPos, 
-    const vec3 &viewPos,
-    bool isSun = false)
+void renderCelestialBody(const CelestialBody &body,
+                         GLuint shader,
+                         const mat4 &viewMatrix,
+                         const mat4 &projectionMatrix,
+                         const vec3 &lightPos,
+                         const vec3 &viewPos,
+                         bool isSun = false,
+                         const vector<vec3> &allPlanetPositions = vector<vec3>(),
+                         const vector<float> &allPlanetRadii = vector<float>())
 {
-	// Disable culling for celestial bodies to ensure correct appearance
-	glDisable(GL_CULL_FACE);
+    // Disable culling for celestial bodies to ensure correct appearance
+    glDisable(GL_CULL_FACE);
     glUseProgram(shader);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, body.texture);
     glUniform1i(glGetUniformLocation(shader, "texture1"), 0);
     glUniform1i(glGetUniformLocation(shader, "isSun"), isSun ? 1 : 0);
 
+    // Pass planet data for shadow calculations
+    if (!isSun && !allPlanetPositions.empty())
+    {
+        glUniform3fv(glGetUniformLocation(shader, "planetPositions"),
+                     allPlanetPositions.size(),
+                     &allPlanetPositions[0][0]);
+        glUniform1fv(glGetUniformLocation(shader, "planetRadii"), allPlanetRadii.size(), &allPlanetRadii[0]);
+        glUniform1i(glGetUniformLocation(shader, "numPlanets"), allPlanetPositions.size());
+    }
+
     mat4 worldMatrix = getCelestialBodyMatrix(body);
 
-    glUniformMatrix4fv(
-		glGetUniformLocation(shader, "projectionMatrix"), 
-		1, 
-		GL_FALSE, 
-		&projectionMatrix[0][0]
-	);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
 
-    glUniformMatrix4fv(
-		glGetUniformLocation(shader, "viewMatrix"), 
-		1, 
-		GL_FALSE, 
-		&viewMatrix[0][0]
-	);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
 
-    glUniformMatrix4fv(
-		glGetUniformLocation(shader, "worldMatrix"), 
-		1, 
-		GL_FALSE, 
-		&worldMatrix[0][0]
-	);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
 
     // Use a fixed view direction for lighting calculations
-    vec3 fixedViewPos = vec3(0.0f, 0.0f, 0.0f);  // Origin point
-    
-    glUniform3fv(
-		glGetUniformLocation(shader, "lightPos"), 
-		1, 
-		&lightPos[0]
-	);
+    vec3 fixedViewPos = vec3(0.0f, 0.0f, 0.0f); // Origin point
 
-    glUniform3fv(
-		glGetUniformLocation(shader, "viewPos"), 
-		1, 
-		&fixedViewPos[0]
-	);
+    glUniform3fv(glGetUniformLocation(shader, "lightPos"), 1, &lightPos[0]);
+
+    glUniform3fv(glGetUniformLocation(shader, "viewPos"),
+                 1,
+                 &viewPos[0] // Use the actual camera position passed to the function
+    );
 
     glBindVertexArray(body.vao);
     glDrawElements(GL_TRIANGLES, body.indexCount, GL_UNSIGNED_INT, 0);
-	
-	// Re-enable culling after rendering celestial bodies
-	glEnable(GL_CULL_FACE);
+
+    // Re-enable culling after rendering celestial bodies
+    glEnable(GL_CULL_FACE);
 }
 
 // Function to render Saturn's rings
-void renderPlanetRings(const PlanetRing& ring, const CelestialBody& planet,
-                      GLuint shader, const mat4& viewMatrix, const mat4& projectionMatrix,
-                      const vec3& lightPos, const vec3& viewPos)
+void renderPlanetRings(const PlanetRing &ring,
+                       const CelestialBody &planet,
+                       GLuint shader,
+                       const mat4 &viewMatrix,
+                       const mat4 &projectionMatrix,
+                       const vec3 &lightPos,
+                       const vec3 &viewPos)
 {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_CULL_FACE);  // Rings should be visible from both sides
-    
+    glDisable(GL_CULL_FACE); // Rings should be visible from both sides
+
     glUseProgram(shader);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, ring.texture);
     glUniform1i(glGetUniformLocation(shader, "texture1"), 0);
     glUniform1i(glGetUniformLocation(shader, "isSun"), 0); // Rings are not the sun
-    
+
     // Position rings at planet location
-    mat4 worldMatrix = translate(mat4(1.0f), planet.position) 
-                     * rotate(mat4(1.0f), radians(-10.0f), vec3(1.0f, 0.0f, 0.0f)) // Tilt rings
-                     * scale(mat4(1.0f), vec3(1.0f, 1.0f, 1.0f));
-    
+    mat4 worldMatrix = translate(mat4(1.0f), planet.position) *
+                       rotate(mat4(1.0f), radians(-10.0f), vec3(1.0f, 0.0f, 0.0f)) // Tilt rings
+                       * scale(mat4(1.0f), vec3(1.0f, 1.0f, 1.0f));
+
     glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
-    
+
     // Set lighting uniforms
     glUniform3fv(glGetUniformLocation(shader, "lightPos"), 1, &lightPos[0]);
     glUniform3fv(glGetUniformLocation(shader, "viewPos"), 1, &viewPos[0]);
-    
+
     glBindVertexArray(ring.vao);
     glDrawElements(GL_TRIANGLES, ring.indexCount, GL_UNSIGNED_INT, 0);
-    
+
     glEnable(GL_CULL_FACE);
     glDisable(GL_BLEND);
+}
+
+// Camera update function for planet selection mode
+void updateCameraForSelectedPlanet(Camera &camera, CelestialBody *selectedBody, float dt)
+{
+    if (!selectedBody)
+        return;
+
+    // Position camera at a good viewing distance from the selected planet
+    float viewingDistance = selectedBody->scale.x * 8.0f; // Adjust multiplier as needed
+    viewingDistance = std::max(3.0f, viewingDistance);    // Minimum distance
+
+    // Calculate desired camera position (slightly above and behind the planet)
+    vec3 targetPosition = selectedBody->position + vec3(0.0f, viewingDistance * 0.3f, viewingDistance);
+
+    // Smooth camera movement (lerp towards target)
+    float lerpSpeed = 2.0f * dt; // Adjust speed as needed
+    camera.position = mix(camera.position, targetPosition, lerpSpeed);
+
+    // Make camera look at the selected planet
+    vec3 directionToPlanet = normalize(selectedBody->position - camera.position);
+    camera.lookAt = directionToPlanet;
+}
+
+// Add visual selection indicator (simple wireframe sphere around selected planet)
+void renderSelectionIndicator(CelestialBody *selectedBody,
+                              GLuint shader,
+                              const mat4 &viewMatrix,
+                              const mat4 &projectionMatrix)
+{
+    if (!selectedBody)
+        return;
+
+    glUseProgram(shader);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
+    glLineWidth(3.0f);                         // Thick lines
+
+    // Create a slightly larger sphere around the selected planet
+    float indicatorScale = selectedBody->scale.x * 1.5f;
+    mat4 worldMatrix = translate(mat4(1.0f), selectedBody->position) * scale(mat4(1.0f), vec3(indicatorScale));
+
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
+
+    // Set white color for the selection indicator
+    vec3 selectionColor = vec3(1.0f, 1.0f, 1.0f); // White
+    glUniform3fv(glGetUniformLocation(shader, "selectionColor"), 1, &selectionColor[0]);
+
+    // Render the wireframe sphere (you can use the same VAO as the planet)
+    glBindVertexArray(selectedBody->vao);
+    glDrawElements(GL_TRIANGLES, selectedBody->indexCount, GL_UNSIGNED_INT, 0);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Back to solid mode
+    glLineWidth(1.0f);                         // Reset line width
 }
 
 void updateCameraAngles(Camera &camera, float dx, float dy, float dt)
@@ -909,9 +1588,8 @@ void updateCameraAngles(Camera &camera, float dx, float dy, float dt)
 
 void updateCameraPosition(Camera &camera, GLFWwindow *window, float dt)
 {
-    bool fastCam = 
-		glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || 
-		glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+    bool fastCam =
+        glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
 
     float currentCameraSpeed = fastCam ? camera.fastSpeed : camera.speed;
 
@@ -949,12 +1627,12 @@ void updateCameraPosition(Camera &camera, GLFWwindow *window, float dt)
 // - Handles texture mapping
 struct Mesh
 {
-    std::vector<vec3> vertices;    		// 3D vertex positions
-    std::vector<vec3> normals;     		// Vertex normals for lighting
-    std::vector<vec2> texCoords;   		// Texture coordinates
-    std::vector<unsigned int> indices;  // Vertex indices for drawing
-    GLuint VAO;                    		// Vertex Array Object
-    GLuint texture;                		// Diffuse texture
+    std::vector<vec3> vertices;        // 3D vertex positions
+    std::vector<vec3> normals;         // Vertex normals for lighting
+    std::vector<vec2> texCoords;       // Texture coordinates
+    std::vector<unsigned int> indices; // Vertex indices for drawing
+    GLuint VAO;                        // Vertex Array Object
+    GLuint texture;                    // Diffuse texture
 
     void setupMesh()
     {
@@ -971,22 +1649,24 @@ struct Mesh
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
 
         // Normals
-        if (!normals.empty()) {
+        if (!normals.empty())
+        {
             glBindBuffer(GL_ARRAY_BUFFER, normalVBO);
             glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(vec3), &normals[0], GL_STATIC_DRAW);
             glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
         }
 
         // Texture coordinates
-        if (!texCoords.empty()) {
+        if (!texCoords.empty())
+        {
             glBindBuffer(GL_ARRAY_BUFFER, texVBO);
             glBufferData(GL_ARRAY_BUFFER, texCoords.size() * sizeof(vec2), &texCoords[0], GL_STATIC_DRAW);
             glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void *)0);
         }
 
         // Indices
@@ -1013,34 +1693,42 @@ struct Model
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, mesh.texture);
             GLint texLocation = glGetUniformLocation(shader, "texture1");
-            if (texLocation == -1) {
+            if (texLocation == -1)
+            {
                 std::cerr << "Warning: Uniform 'texture1' not found in shader" << std::endl;
             }
             glUniform1i(texLocation, 0);
 
             // Draw mesh
             glBindVertexArray(mesh.VAO);
-            if (mesh.indices.empty()) {
+            if (mesh.indices.empty())
+            {
                 std::cerr << "Warning: Mesh has no indices" << std::endl;
-            } else {
+            }
+            else
+            {
                 glDrawElements(GL_TRIANGLES, mesh.indices.size(), GL_UNSIGNED_INT, 0);
             }
             glBindVertexArray(0);
-            
+
             // Check for OpenGL errors
             GLenum err;
-            while ((err = glGetError()) != GL_NO_ERROR) {
+            while ((err = glGetError()) != GL_NO_ERROR)
+            {
                 std::cerr << "OpenGL error in Draw: " << err << std::endl;
             }
         }
     }
 };
 
-void processNode(Model &model, aiNode *node, const aiScene *scene) {
+void processNode(Model &model, aiNode *node, const aiScene *scene)
+{
     // Process all meshes in this node
-    for (unsigned int i = 0; i < node->mNumMeshes; i++) {
+    for (unsigned int i = 0; i < node->mNumMeshes; i++)
+    {
         aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-        if (!mesh) {
+        if (!mesh)
+        {
             std::cerr << "Warning: Null mesh encountered" << std::endl;
             continue;
         }
@@ -1049,19 +1737,25 @@ void processNode(Model &model, aiNode *node, const aiScene *scene) {
 
         Mesh newMesh;
         std::cout << "Processing mesh with " << mesh->mNumVertices << " vertices" << std::endl;
-        
+
         // Load material/texture first
-        if (mesh->mMaterialIndex >= 0) {
-            aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-            if (material) {
+        if (mesh->mMaterialIndex >= 0)
+        {
+            aiMaterial *material = scene->mMaterials[mesh->mMaterialIndex];
+            if (material)
+            {
                 aiString texturePath;
-                if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
+                if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS)
+                {
                     std::string fullPath = std::string("models/rubber_duck/textures/material_baseColor.jpeg");
                     std::cout << "Loading texture from: " << fullPath << std::endl;
                     newMesh.texture = loadTexture(fullPath.c_str());
-                    if (newMesh.texture == 0) {
+                    if (newMesh.texture == 0)
+                    {
                         std::cerr << "Failed to load texture!" << std::endl;
-                    } else {
+                    }
+                    else
+                    {
                         std::cout << "Texture loaded successfully with ID: " << newMesh.texture << std::endl;
                     }
                 }
@@ -1069,49 +1763,47 @@ void processNode(Model &model, aiNode *node, const aiScene *scene) {
         }
 
         // Process vertices
-        for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
-            newMesh.vertices.push_back(vec3(
-                mesh->mVertices[i].x,
-                mesh->mVertices[i].y,
-                mesh->mVertices[i].z
-            ));
+        for (unsigned int i = 0; i < mesh->mNumVertices; i++)
+        {
+            newMesh.vertices.push_back(vec3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z));
 
-            if (mesh->HasNormals()) {
-                newMesh.normals.push_back(vec3(
-                    mesh->mNormals[i].x,
-                    mesh->mNormals[i].y,
-                    mesh->mNormals[i].z
-                ));
+            if (mesh->HasNormals())
+            {
+                newMesh.normals.push_back(vec3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z));
             }
 
-            if (mesh->mTextureCoords[0]) {
-                newMesh.texCoords.push_back(vec2(
-                    mesh->mTextureCoords[0][i].x,
-                    mesh->mTextureCoords[0][i].y
-                ));
-            } else {
+            if (mesh->mTextureCoords[0])
+            {
+                newMesh.texCoords.push_back(vec2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y));
+            }
+            else
+            {
                 newMesh.texCoords.push_back(vec2(0.0f, 0.0f));
             }
         }
 
         // Process indices
-        for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+        for (unsigned int i = 0; i < mesh->mNumFaces; i++)
+        {
             aiFace face = mesh->mFaces[i];
-            for (unsigned int j = 0; j < face.mNumIndices; j++) {
+            for (unsigned int j = 0; j < face.mNumIndices; j++)
+            {
                 newMesh.indices.push_back(face.mIndices[j]);
             }
         }
 
-        if (!newMesh.vertices.empty() && !newMesh.indices.empty()) {
+        if (!newMesh.vertices.empty() && !newMesh.indices.empty())
+        {
             newMesh.setupMesh();
             model.meshes.push_back(newMesh);
-            std::cout << "Added mesh with " << newMesh.vertices.size() << " vertices and " 
-                     << newMesh.indices.size() << " indices" << std::endl;
+            std::cout << "Added mesh with " << newMesh.vertices.size() << " vertices and " << newMesh.indices.size()
+                      << " indices" << std::endl;
         }
     }
 
     // Recursively process child nodes
-    for (unsigned int i = 0; i < node->mNumChildren; i++) {
+    for (unsigned int i = 0; i < node->mNumChildren; i++)
+    {
         processNode(model, node->mChildren[i], scene);
     }
 }
@@ -1126,17 +1818,14 @@ Model loadModel(const char *path)
     Model model;
     Assimp::Importer importer;
     std::cout << "Attempting to load model from: " << path << std::endl;
-    
-    const aiScene *scene = importer.ReadFile(path, 
-        aiProcess_Triangulate | 
-        aiProcess_GenNormals | 
-        aiProcess_FlipUVs |
-        aiProcess_CalcTangentSpace |
-        aiProcess_JoinIdenticalVertices |
-        aiProcess_ValidateDataStructure |
-        aiProcess_PreTransformVertices);
 
-    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+    const aiScene *scene = importer.ReadFile(path,
+                                             aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs |
+                                                 aiProcess_CalcTangentSpace | aiProcess_JoinIdenticalVertices |
+                                                 aiProcess_ValidateDataStructure | aiProcess_PreTransformVertices);
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+    {
         std::cerr << "ERROR::ASSIMP::" << importer.GetErrorString() << std::endl;
         return model;
     }
@@ -1149,6 +1838,103 @@ Model loadModel(const char *path)
     processNode(model, scene->mRootNode, scene);
 
     return model;
+}
+
+PlanetSelector setupPlanetSelectorWithInfo(vector<CelestialBody *> &allBodies)
+{
+    PlanetSelector planetSelector;
+
+    // Sun
+    planetSelector.addCelestialBody(allBodies[0],
+                                    "Sun",
+                                    PlanetInfo("Sun",
+                                               "Our stellar powerhouse",
+                                               "Temperature: 5,778K surface, 15M K core",
+                                               "Mass: 99.86% of entire solar system",
+                                               "Powers all life through fusion"));
+
+    // Mercury
+    planetSelector.addCelestialBody(allBodies[1],
+                                    "Mercury",
+                                    PlanetInfo("Mercury",
+                                               "Smallest and fastest planet",
+                                               "Orbital period: 88 Earth days",
+                                               "Temp: 427°C day, -173°C night",
+                                               "No atmosphere or moons"));
+
+    // Venus
+    planetSelector.addCelestialBody(allBodies[2],
+                                    "Venus",
+                                    PlanetInfo("Venus",
+                                               "Hottest planet with toxic air",
+                                               "Surface temp: 462°C (hotter than Mercury)",
+                                               "Atmosphere: 96% CO2, crushing pressure",
+                                               "Rotates backward (retrograde)"));
+
+    // Earth
+    planetSelector.addCelestialBody(allBodies[3],
+                                    "Earth",
+                                    PlanetInfo("Earth",
+                                               "Our beautiful blue marble",
+                                               "71% surface covered by water",
+                                               "Perfect distance for liquid water",
+                                               "Protected by magnetic field"));
+
+    // Moon
+    planetSelector.addCelestialBody(allBodies[4],
+                                    "Moon",
+                                    PlanetInfo("Moon",
+                                               "Earth's loyal companion",
+                                               "Always shows same face to Earth",
+                                               "Created Earth's 24-hour day cycle",
+                                               "Made from rock blasted from Earth"));
+
+    // Mars
+    planetSelector.addCelestialBody(allBodies[5],
+                                    "Mars",
+                                    PlanetInfo("Mars",
+                                               "The Red Planet, our next home",
+                                               "Olympus Mons volcano: 21km high",
+                                               "Has polar ice caps and seasons",
+                                               "Day: 24h 37min (like Earth)"));
+
+    // Jupiter
+    planetSelector.addCelestialBody(allBodies[6],
+                                    "Jupiter",
+                                    PlanetInfo("Jupiter",
+                                               "Giant protector with Great Red Spot",
+                                               "Mass: 2.5x all other planets combined",
+                                               "Great Red Spot: storm larger than Earth",
+                                               "Has 95 moons including 4 major ones"));
+
+    // Saturn
+    planetSelector.addCelestialBody(allBodies[7],
+                                    "Saturn",
+                                    PlanetInfo("Saturn",
+                                               "Ringed beauty, less dense than water",
+                                               "Density: 0.69 g/cm³ (would float!)",
+                                               "Rings made of ice and rock particles",
+                                               "Moon Titan has thick atmosphere"));
+
+    // Uranus
+    planetSelector.addCelestialBody(allBodies[8],
+                                    "Uranus",
+                                    PlanetInfo("Uranus",
+                                               "Tilted ice giant on its side",
+                                               "Rotates on side (98° axial tilt)",
+                                               "Made of water, methane & ammonia ice",
+                                               "Has faint rings found in 1977"));
+
+    // Neptune
+    planetSelector.addCelestialBody(allBodies[9],
+                                    "Neptune",
+                                    PlanetInfo("Neptune",
+                                               "Windiest planet with supersonic storms",
+                                               "Wind speeds: up to 2,100 km/h",
+                                               "Takes 165 Earth years to orbit Sun",
+                                               "Blue color from methane gas"));
+
+    return planetSelector;
 }
 
 int main(int argc, char *argv[])
@@ -1175,24 +1961,13 @@ int main(int argc, char *argv[])
     Camera camera = setupCamera();
 
     // Setup projection and view matrices
-    mat4 projectionMatrix = glm::perspective(
-		70.0f, 
-		800.0f / 600.0f, 
-		0.01f, 
-		100.0f
-	);
+    mat4 projectionMatrix = glm::perspective(70.0f, 800.0f / 600.0f, 0.01f, 100.0f);
 
     mat4 viewMatrix = updateViewMatrix(camera);
 
-    GLuint projectionMatrixLocation = glGetUniformLocation(
-		shaders.base, 
-		"projectionMatrix"
-	);
+    GLuint projectionMatrixLocation = glGetUniformLocation(shaders.base, "projectionMatrix");
 
-    GLuint viewMatrixLocation = glGetUniformLocation(
-		shaders.base, 
-		"viewMatrix"
-	);
+    GLuint viewMatrixLocation = glGetUniformLocation(shaders.base, "viewMatrix");
 
     glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, &projectionMatrix[0][0]);
     glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &viewMatrix[0][0]);
@@ -1201,115 +1976,160 @@ int main(int argc, char *argv[])
     int vao = createVertexBufferObject();
     Model duckModel = loadModel("models/rubber_duck/scene.gltf");
 
-    // Replace the celestial body creation section in your main() function with this:
+    // Setup celestial bodies with realistic proportions
+    // Using a scale where Earth = 0.3f as base reference
 
-// Setup celestial bodies with realistic proportions
-// Using a scale where Earth = 0.3f as base reference
+    /// SUN - Center of the system
+    CelestialBody sun = createCelestialBody("textures/sun.jpg",
+                                            4.0f, // Large but viewable size
+                                            0.0f, // No orbit - center of system
+                                            0.0f, // No orbital movement
+                                            15.0f // Rotation speed
+    );
+    sun.position = vec3(0.0f, 0.0f, -20.0f);
 
-/// SUN - Center of the system
-CelestialBody sun = createCelestialBody(
-    "textures/sun.jpg", 
-    4.0f,      // Large but viewable size
-    0.0f,      // No orbit - center of system
-    0.0f,      // No orbital movement
-    15.0f      // Rotation speed
-);
-sun.position = vec3(0.0f, 0.0f, -20.0f);
+    // MERCURY - Smallest planet, closest orbit
+    CelestialBody mercury = createCelestialBody("textures/mercury.jpg",
+                                                0.11f, // Small size
+                                                8.0f,  // Safe distance from sun (was 3.0f)
+                                                2.0f,  // Fastest orbital speed
+                                                35.0f  // Fast rotation
+    );
 
-// MERCURY - Smallest planet, closest orbit
-CelestialBody mercury = createCelestialBody(
-    "textures/mercury.jpg",
-    0.11f,     // Small size
-    8.0f,      // Safe distance from sun (was 3.0f)
-    2.0f,      // Fastest orbital speed
-    35.0f      // Fast rotation
-);
+    // VENUS - Second planet
+    CelestialBody venus = createCelestialBody("textures/venus.jpg",
+                                              0.28f, // Venus size
+                                              10.0f, // Safe distance from mercury (was 4.5f)
+                                              1.6f,  // Orbital speed
+                                              -12.0f // Slow retrograde rotation
+    );
 
-// VENUS - Second planet
-CelestialBody venus = createCelestialBody(
-    "textures/venus.jpg",
-    0.28f,     // Venus size
-    10.0f,     // Safe distance from mercury (was 4.5f)
-    1.6f,      // Orbital speed
-    -12.0f     // Slow retrograde rotation
-);
+    // EARTH - Third planet
+    CelestialBody earth = createCelestialBody("textures/earth.jpg",
+                                              0.35f, // Earth size
+                                              12.0f, // Safe distance from venus (was 6.0f)
+                                              1.0f,  // Earth orbital speed reference
+                                              20.0f  // Earth rotation speed
+    );
 
-// EARTH - Third planet
-CelestialBody earth = createCelestialBody(
-    "textures/earth.jpg", 
-    0.3f,      // Earth size
-    12.0f,     // Safe distance from venus (was 6.0f)
-    1.0f,      // Earth orbital speed reference
-    20.0f      // Earth rotation speed
-);
+    // MOON - Orbits Earth
+    CelestialBody moon = createCelestialBody("textures/moon.jpg",
+                                             0.08f, // Small moon size
+                                             1.2f,  // Distance from Earth (increased from 1.0f)
+                                             4.0f,  // Fast orbit around Earth
+                                             5.0f   // Moon rotation
+    );
 
-// MOON - Orbits Earth
-CelestialBody moon = createCelestialBody(
-    "textures/moon.jpg", 
-    0.08f,     // Small moon size
-    1.2f,      // Distance from Earth (increased from 1.0f)
-    4.0f,      // Fast orbit around Earth
-    5.0f       // Moon rotation
-);
+    // MARS - Fourth planet
+    CelestialBody mars = createCelestialBody("textures/mars.jpg",
+                                             0.16f, // Mars size
+                                             15.0f, // Safe distance from Earth (was 7.5f)
+                                             0.8f,  // Slower orbital speed than Earth
+                                             18.0f  // Rotation speed
+    );
 
-// MARS - Fourth planet
-CelestialBody mars = createCelestialBody(
-    "textures/mars.jpg", 
-    0.16f,     // Mars size
-    15.0f,     // Safe distance from Earth (was 7.5f)
-    0.8f,      // Slower orbital speed than Earth
-    18.0f      // Rotation speed
-);
+    // JUPITER - Fifth planet, largest
+    CelestialBody jupiter = createCelestialBody("textures/jupiter.jpg",
+                                                3.36f, // Large size
+                                                22.0f, // Safe distance from Mars (was 10.0f)
+                                                0.5f,  // Slower orbital speed
+                                                30.0f  // Fast rotation speed
+    );
 
-// JUPITER - Fifth planet, largest
-CelestialBody jupiter = createCelestialBody(
-    "textures/jupiter.jpg", 
-    3.36f,     // Large size
-    22.0f,     // Safe distance from Mars (was 10.0f)
-    0.5f,      // Slower orbital speed
-    30.0f      // Fast rotation speed
-);
+    // SATURN - Sixth planet with rings
+    CelestialBody saturn = createCelestialBody("textures/saturn.jpg",
+                                               2.82f, // Large size
+                                               28.0f, // Safe distance from Jupiter (was 14.0f)
+                                               0.35f, // Slow orbital speed
+                                               28.0f  // Fast rotation speed
+    );
 
-// SATURN - Sixth planet with rings
-CelestialBody saturn = createCelestialBody(
-    "textures/saturn.jpg", 
-    2.82f,     // Large size
-    28.0f,     // Safe distance from Jupiter (was 14.0f)
-    0.35f,     // Slow orbital speed
-    28.0f      // Fast rotation speed
-);
+    // URANUS - Seventh planet
+    CelestialBody uranus = createCelestialBody("textures/uranus.jpg",
+                                               1.4f,  // Medium size
+                                               34.0f, // Safe distance from Saturn (was 18.0f)
+                                               0.25f, // Very slow orbital speed
+                                               -15.0f // Retrograde rotation
+    );
 
-// URANUS - Seventh planet
-CelestialBody uranus = createCelestialBody(
-    "textures/uranus.jpg",
-    1.2f,      // Medium size
-    34.0f,     // Safe distance from Saturn (was 18.0f)
-    0.25f,     // Very slow orbital speed
-    -15.0f     // Retrograde rotation
-);
+    // NEPTUNE - Outermost planet
+    CelestialBody neptune = createCelestialBody("textures/neptune.jpg",
+                                                1.17f, // Medium size
+                                                40.0f, // Safe distance from Uranus (was 22.0f)
+                                                0.2f,  // Slowest orbital speed
+                                                18.0f  // Normal rotation speed
+    );
 
-// NEPTUNE - Outermost planet
-CelestialBody neptune = createCelestialBody(
-    "textures/neptune.jpg",
-    1.17f,     // Medium size
-    40.0f,     // Safe distance from Uranus (was 22.0f)
-    0.2f,      // Slowest orbital speed
-    18.0f      // Normal rotation speed
-);
+    Comet halleysComet = createComet("textures/comet.jpg", vec3(0.0f, 0.0f, -20.0f), 45.0f, 0.85f);
+
+    Comet comet2 = createComet("textures/comet.jpg", vec3(0.0f, 0.0f, -20.0f), 25.0f, 0.7f);
+    comet2.orbitAngle = 180.0f; // Start on opposite side
+
+    // Create Saturn's rings
+    PlanetRing saturnRings = createSaturnRings();
+
+    // Setup planet selector with detailed information
+    vector<CelestialBody *> allBodies =
+        {&sun, &mercury, &venus, &earth, &moon, &mars, &jupiter, &saturn, &uranus, &neptune};
+    PlanetSelector planetSelector = setupPlanetSelectorWithInfo(allBodies);
+
+    // Add info panel
+    InfoPanel infoPanel;
+    infoPanel.loadPlanetTextures();
 
 
-// Create Saturn's rings
-PlanetRing saturnRings = createSaturnRings();
+    // Add planet selection mode flag
+    bool planetSelectionMode = false;
 
-     // Setup skybox
-    std::vector<std::string> skyboxFaces = {
-        "textures/skybox/1.png",
-        "textures/skybox/2.png",
-        "textures/skybox/3.png",
-        "textures/skybox/4.png",
-        "textures/skybox/5.png",
-        "textures/skybox/6.png"
-    };
+    // Store reset positions AFTER bodies are created but BEFORE any updates
+    BlackHole blackHole;
+    blackHole.position = vec3(0.0f, 0.0f, -20.0f); // Black hole center
+    blackHole.strength = 0.0f;
+    blackHole.active = false;
+    blackHole.activationTime = 0.0f;
+
+    // Now set up initial orbital positions for normal animation
+    updateCelestialBody(mercury, sun.position, 0.0f, 0.0f);
+    updateCelestialBody(venus, sun.position, 45.0f, 0.0f);
+    updateCelestialBody(earth, sun.position, 90.0f, 0.0f);
+    updateCelestialBody(mars, sun.position, 135.0f, 0.0f);
+    updateCelestialBody(jupiter, sun.position, 180.0f, 0.0f);
+    updateCelestialBody(saturn, sun.position, 225.0f, 0.0f);
+    updateCelestialBody(uranus, sun.position, 270.0f, 0.0f);
+    updateCelestialBody(neptune, sun.position, 315.0f, 0.0f);
+    updateCelestialBody(moon, earth.position, 0.0f, 0.0f);
+
+    // Store these as the RESET positions (what we return to with R key)
+    blackHole.resetPositions.clear();
+    blackHole.resetScales.clear();
+    blackHole.resetPositions.push_back(sun.position);
+    blackHole.resetScales.push_back(sun.scale);
+    blackHole.resetPositions.push_back(mercury.position);
+    blackHole.resetScales.push_back(mercury.scale);
+    blackHole.resetPositions.push_back(venus.position);
+    blackHole.resetScales.push_back(venus.scale);
+    blackHole.resetPositions.push_back(earth.position);
+    blackHole.resetScales.push_back(earth.scale);
+    blackHole.resetPositions.push_back(moon.position);
+    blackHole.resetScales.push_back(moon.scale);
+    blackHole.resetPositions.push_back(mars.position);
+    blackHole.resetScales.push_back(mars.scale);
+    blackHole.resetPositions.push_back(jupiter.position);
+    blackHole.resetScales.push_back(jupiter.scale);
+    blackHole.resetPositions.push_back(saturn.position);
+    blackHole.resetScales.push_back(saturn.scale);
+    blackHole.resetPositions.push_back(uranus.position);
+    blackHole.resetScales.push_back(uranus.scale);
+    blackHole.resetPositions.push_back(neptune.position);
+    blackHole.resetScales.push_back(neptune.scale);
+
+    // Setup skybox
+    std::vector<std::string> skyboxFaces = {"textures/skybox/1.png",
+                                            "textures/skybox/2.png",
+                                            "textures/skybox/3.png",
+                                            "textures/skybox/4.png",
+                                            "textures/skybox/5.png",
+                                            "textures/skybox/6.png"};
     Skybox skybox = createSkybox(skyboxFaces);
 
     // Initialize animation variables
@@ -1329,6 +2149,19 @@ PlanetRing saturnRings = createSaturnRings();
     glfwGetCursorPos(window, &lastMousePosX, &lastMousePosY);
     bool isPaused = false;
     bool wasSpacePressed = false;
+    bool comparisonMode = false;
+    bool wasCPressed = false;
+
+    // Time control variables
+    float timeSpeed = 1.0f; // Normal speed = 1.0, faster = >1.0, slower = <1.0, reverse = negative
+    bool wasEqualPressed = false;
+    bool wasMinusPressed = false;
+    bool wasTPressed = false;
+
+    // Input state tracking for X & R keys
+    static bool wasXPressed = false;
+    static bool wasRPressed = false;
+
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -1336,6 +2169,7 @@ PlanetRing saturnRings = createSaturnRings();
         // Update timing
         float dt = glfwGetTime() - lastFrameTime;
         lastFrameTime += dt;
+
 
         // Handle pause input
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
@@ -1350,7 +2184,226 @@ PlanetRing saturnRings = createSaturnRings();
         {
             wasSpacePressed = false;
         }
-        float animationDt = isPaused ? 0.0f : dt;
+
+        // Time speed controls
+        if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_PRESS)
+        {
+            if (!wasEqualPressed)
+            {
+                timeSpeed *= 1.5f; // Increase speed by 50%
+                if (timeSpeed > 10.0f)
+                    timeSpeed = 10.0f; // Cap at 10x speed
+                std::cout << "Time speed: " << timeSpeed << "x" << std::endl;
+                wasEqualPressed = true;
+            }
+        }
+        else
+        {
+            wasEqualPressed = false;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS)
+        {
+            if (!wasMinusPressed)
+            {
+                timeSpeed /= 1.5f; // Decrease speed
+                if (timeSpeed < -10.0f)
+                    timeSpeed = -10.0f; // Cap reverse speed
+                std::cout << "Time speed: " << timeSpeed << "x" << std::endl;
+                wasMinusPressed = true;
+            }
+        }
+        else
+        {
+            wasMinusPressed = false;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS)
+        {
+            if (!wasTPressed)
+            {
+                timeSpeed *= -1.0f; // Reverse time direction
+                std::cout << "Time " << (timeSpeed < 0 ? "reversed" : "forward") << " at " << abs(timeSpeed)
+                          << "x speed" << std::endl;
+                wasTPressed = true;
+            }
+        }
+        else
+        {
+            wasTPressed = false;
+        }
+
+        // Reset to normal speed
+        if (glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS)
+        {
+            timeSpeed = 1.0f;
+            std::cout << "Time speed reset to normal" << std::endl;
+        }
+
+        // Planet size comparison mode
+        if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
+        {
+            if (!wasCPressed)
+            {
+                comparisonMode = !comparisonMode;
+                if (comparisonMode)
+                {
+                    std::cout << "Planet size comparison mode ON - Press C again to return to orbit mode" << std::endl;
+                }
+                else
+                {
+                    std::cout << "Returned to normal orbit mode" << std::endl;
+                }
+                wasCPressed = true;
+            }
+        }
+        else
+        {
+            wasCPressed = false;
+        }
+
+
+        // Handle planet selection with key 3
+        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
+        {
+            if (!planetSelector.was3Pressed)
+            {
+                if (!planetSelectionMode)
+                {
+                    // Enter planet selection mode
+                    planetSelectionMode = true;
+                    camera.firstPerson = false; // Switch to third person for better planet viewing
+                    cout << "Entered planet selection mode. Press 'I' to show planet info. Selected: "
+                         << planetSelector.getSelectedName() << endl;
+                }
+                else
+                {
+                    // Cycle to next planet
+                    planetSelector.nextSelection();
+                    // If info panel is currently visible, update it with new planet info
+                    if (infoPanel.visible)
+                    {
+                        infoPanel.show(planetSelector.getSelectedInfo());
+                    }
+                    cout << "Selected: " << planetSelector.getSelectedName() << " (Press 'I' for info)" << endl;
+                }
+                planetSelector.was3Pressed = true;
+            }
+        }
+        else
+        {
+            planetSelector.was3Pressed = false;
+        }
+
+        // Exit planet selection mode with key 4
+        if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS)
+        {
+            if (planetSelectionMode)
+            {
+                planetSelectionMode = false;
+                infoPanel.hide(); // Hide info panel when exiting
+                cout << "Exited planet selection mode" << endl;
+            }
+        }
+
+        // Handle 'I' key for showing/hiding planet info (only in planet selection mode)
+        if (planetSelectionMode)
+        {
+            infoPanel.handleInput(window, planetSelector.getSelectedInfo());
+        }
+
+        // Update info panel
+        infoPanel.update(dt);
+
+        // X and R key handling for black hole effect
+        // X key to activate black hole
+        if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
+        {
+            if (!wasXPressed && !blackHole.active)
+            {
+                blackHole.active = true;
+                blackHole.activationTime = glfwGetTime();
+                std::cout << "Black hole activated!" << std::endl;
+
+                // CRITICAL FIX: Capture CURRENT positions when X is pressed, not stored positions
+                blackHole.originalPositions.clear();
+                blackHole.originalScales.clear();
+                blackHole.originalPositions.push_back(sun.position); // Current sun position
+                blackHole.originalScales.push_back(sun.scale);
+                blackHole.originalPositions.push_back(mercury.position); // Current mercury position
+                blackHole.originalScales.push_back(mercury.scale);
+                blackHole.originalPositions.push_back(venus.position); // Current venus position
+                blackHole.originalScales.push_back(venus.scale);
+                blackHole.originalPositions.push_back(earth.position); // Current earth position
+                blackHole.originalScales.push_back(earth.scale);
+                blackHole.originalPositions.push_back(moon.position); // Current moon position
+                blackHole.originalScales.push_back(moon.scale);
+                blackHole.originalPositions.push_back(mars.position); // Current mars position
+                blackHole.originalScales.push_back(mars.scale);
+                blackHole.originalPositions.push_back(jupiter.position); // Current jupiter position
+                blackHole.originalScales.push_back(jupiter.scale);
+                blackHole.originalPositions.push_back(saturn.position); // Current saturn position
+                blackHole.originalScales.push_back(saturn.scale);
+                blackHole.originalPositions.push_back(uranus.position); // Current uranus position
+                blackHole.originalScales.push_back(uranus.scale);
+                blackHole.originalPositions.push_back(neptune.position); // Current neptune position
+                blackHole.originalScales.push_back(neptune.scale);
+
+                wasXPressed = true;
+            }
+        }
+        else
+        {
+            wasXPressed = false;
+        }
+
+        // R key to reset
+        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
+        {
+            if (!wasRPressed)
+            {
+                blackHole.active = false;
+                blackHole.strength = 0.0f;
+                std::cout << "Black hole reset!" << std::endl;
+
+                // Reset all bodies to normal orbital positions (not the X-pressed positions)
+                sun.position = blackHole.resetPositions[0];
+                sun.scale = blackHole.resetScales[0];
+                mercury.position = blackHole.resetPositions[1];
+                mercury.scale = blackHole.resetScales[1];
+                venus.position = blackHole.resetPositions[2];
+                venus.scale = blackHole.resetScales[2];
+                earth.position = blackHole.resetPositions[3];
+                earth.scale = blackHole.resetScales[3];
+                moon.position = blackHole.resetPositions[4];
+                moon.scale = blackHole.resetScales[4];
+                mars.position = blackHole.resetPositions[5];
+                mars.scale = blackHole.resetScales[5];
+                jupiter.position = blackHole.resetPositions[6];
+                jupiter.scale = blackHole.resetScales[6];
+                saturn.position = blackHole.resetPositions[7];
+                saturn.scale = blackHole.resetScales[7];
+                uranus.position = blackHole.resetPositions[8];
+                uranus.scale = blackHole.resetScales[8];
+                neptune.position = blackHole.resetPositions[9];
+                neptune.scale = blackHole.resetScales[9];
+
+                wasRPressed = true;
+            }
+        }
+        else
+        {
+            wasRPressed = false;
+        }
+
+        float animationDt = isPaused ? 0.0f : dt * timeSpeed;
+
+        // Update camera for planet selection mode
+        if (planetSelectionMode)
+        {
+            CelestialBody *selectedBody = planetSelector.getSelectedBody();
+            updateCameraForSelectedPlanet(camera, selectedBody, dt);
+        }
 
         // Clear buffers
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1365,89 +2418,320 @@ PlanetRing saturnRings = createSaturnRings();
 
         // Setup base shader for scene rendering
         glUseProgram(shaders.base);
-        
+
         glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &viewMatrix[0][0]);
-        
-        glUniformMatrix4fv(
-            projectionMatrixLocation, 
-            1, 
-            GL_FALSE, 
-            &projectionMatrix[0][0]
-        );
-        
+
+        glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, &projectionMatrix[0][0]);
+
         glBindVertexArray(vao);
 
         // Update and render spinning duck (third-person view only)
         spinningCubeAngle += 180.0f * dt;
-        if (!camera.firstPerson)
+        if (!camera.firstPerson && !planetSelectionMode)
         {
-            GLuint worldMatrixLocation = glGetUniformLocation(
-                shaders.base, 
-                "worldMatrix"
-            );
+            GLuint worldMatrixLocation = glGetUniformLocation(shaders.base, "worldMatrix");
 
-            mat4 spinningCubeWorldMatrix = translate(
-                mat4(1.0f), 
-                camera.position + vec3(0.0f, -0.2f, 0.0f)
-            ) 
-            * rotate(
-                mat4(1.0f), 
-                radians(spinningCubeAngle), 
-                vec3(0.0f, 1.0f, 0.0f)
-            )
-            * rotate(
-                mat4(1.0f),
-                radians(1.0f),
-                vec3(0.0f, 0.0f, 1.0f)
-            )
-            * scale(
-                mat4(1.0f), 
-                vec3(0.0006f, 0.0006f, 0.0006f)
-            );
+            mat4 spinningCubeWorldMatrix = translate(mat4(1.0f), camera.position + vec3(0.0f, -0.2f, 0.0f)) *
+                                           rotate(mat4(1.0f), radians(spinningCubeAngle), vec3(0.0f, 1.0f, 0.0f)) *
+                                           rotate(mat4(1.0f), radians(1.0f), vec3(0.0f, 0.0f, 1.0f)) *
+                                           scale(mat4(1.0f), vec3(0.0006f, 0.0006f, 0.0006f));
 
-            glUniformMatrix4fv(
-                worldMatrixLocation, 
-                1, 
-                GL_FALSE, 
-                &spinningCubeWorldMatrix[0][0]
-            );
-            
-            if (!duckModel.meshes.empty()) {
+            glUniformMatrix4fv(worldMatrixLocation, 1, GL_FALSE, &spinningCubeWorldMatrix[0][0]);
+
+            if (!duckModel.meshes.empty())
+            {
                 glDisable(GL_CULL_FACE);
                 duckModel.Draw(shaders.base);
                 glEnable(GL_CULL_FACE);
             }
         }
 
-        // Update celestial bodies - Complete solar system animation
+        // Update celestial body positions and handle black hole effect
         orbAngle += 20.0f * animationDt;
         vec3 sunPosition = vec3(0.0f, 0.0f, -20.0f);
-        
-        // Update all celestial bodies with realistic orbital mechanics
-        updateCelestialBody(sun, sun.position, orbAngle, animationDt);
-        updateCelestialBody(mercury, sun.position, orbAngle, animationDt);
-        updateCelestialBody(venus, sun.position, orbAngle, animationDt);
-        updateCelestialBody(earth, sun.position, orbAngle, animationDt);
-        updateCelestialBody(mars, sun.position, orbAngle, animationDt);
-        updateCelestialBody(jupiter, sun.position, orbAngle, animationDt);
-        updateCelestialBody(saturn, sun.position, orbAngle, animationDt);
-        updateCelestialBody(uranus, sun.position, orbAngle, animationDt);
-        updateCelestialBody(neptune, sun.position, orbAngle, animationDt);
-        updateCelestialBody(moon, earth.position, orbAngle, animationDt);
 
-        // Render all celestial bodies in order from sun outward
-        renderCelestialBody(sun, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, true);
-        renderCelestialBody(mercury, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(venus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(earth, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(mars, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(jupiter, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        // Render Saturn's rings immediately after Saturn
-        renderPlanetRings(saturnRings, saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position);
-        renderCelestialBody(uranus, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(neptune, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
-        renderCelestialBody(moon, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, false);
+        // FIXED: Proper black hole effect implementation
+        if (blackHole.active)
+        {
+            float elapsed = glfwGetTime() - blackHole.activationTime;
+            float effectDuration = 6.0f; // 6 second effect for better visibility
+            blackHole.strength = std::min(1.0f, elapsed / effectDuration);
+
+            // Apply black hole effect to all bodies - shrink to COMPLETELY INVISIBLE
+            float shrinkFactor =
+                std::max(0.0f, 1.0f - blackHole.strength); // Goes from 1.0 to 0.0 (completely invisible)
+
+            // Linear interpolation function
+            auto lerp = [](const vec3 &a, const vec3 &b, float t) -> vec3 { return a + t * (b - a); };
+
+            // Apply effect to ALL bodies including the sun - they all go to the black hole center
+            sun.position = lerp(blackHole.originalPositions[0], blackHole.position, blackHole.strength);
+            sun.scale = blackHole.originalScales[0] * shrinkFactor;
+
+            mercury.position = lerp(blackHole.originalPositions[1], blackHole.position, blackHole.strength);
+            mercury.scale = blackHole.originalScales[1] * shrinkFactor;
+
+            venus.position = lerp(blackHole.originalPositions[2], blackHole.position, blackHole.strength);
+            venus.scale = blackHole.originalScales[2] * shrinkFactor;
+
+            earth.position = lerp(blackHole.originalPositions[3], blackHole.position, blackHole.strength);
+            earth.scale = blackHole.originalScales[3] * shrinkFactor;
+
+            moon.position = lerp(blackHole.originalPositions[4], blackHole.position, blackHole.strength);
+            moon.scale = blackHole.originalScales[4] * shrinkFactor;
+
+            mars.position = lerp(blackHole.originalPositions[5], blackHole.position, blackHole.strength);
+            mars.scale = blackHole.originalScales[5] * shrinkFactor;
+
+            jupiter.position = lerp(blackHole.originalPositions[6], blackHole.position, blackHole.strength);
+            jupiter.scale = blackHole.originalScales[6] * shrinkFactor;
+
+            saturn.position = lerp(blackHole.originalPositions[7], blackHole.position, blackHole.strength);
+            saturn.scale = blackHole.originalScales[7] * shrinkFactor;
+
+            uranus.position = lerp(blackHole.originalPositions[8], blackHole.position, blackHole.strength);
+            uranus.scale = blackHole.originalScales[8] * shrinkFactor;
+
+            neptune.position = lerp(blackHole.originalPositions[9], blackHole.position, blackHole.strength);
+            neptune.scale = blackHole.originalScales[9] * shrinkFactor;
+
+            // Don't do normal orbital updates during black hole effect - COMPLETELY override positions
+        }
+        else
+        {
+            // Check if we're in comparison mode
+            if (comparisonMode)
+            {
+                // Position planets in a straight line by size: smallest to largest
+                // Position sun slightly to the side so it doesn't block planets
+                sun.position = vec3(-15.0f, 0.0f, -20.0f);
+
+                // Line up planets by size from smallest to largest, moving away from sun
+                // Position them so sun light can reach all of them (no shadows)
+
+                float spacing = 8.0f;       // Distance between each planet
+                float startDistance = 5.0f; // Distance from sun position to first planet
+
+                mercury.position = vec3(startDistance, 0, -20);               // 0.11f - Smallest
+                mars.position = vec3(startDistance + spacing * 1, 0, -20);    // 0.16f - Mars is smaller than Earth!
+                venus.position = vec3(startDistance + spacing * 2, 0, -20);   // 0.28f
+                earth.position = vec3(startDistance + spacing * 3, 0, -20);   // 0.3f
+                moon.position = vec3(startDistance + spacing * 3.3f, 2, -20); // Moon near Earth
+                neptune.position = vec3(startDistance + spacing * 4, 0, -20); // 1.17f - Neptune is smaller than Uranus!
+                uranus.position = vec3(startDistance + spacing * 5, 0, -20);  // 1.2f
+                saturn.position = vec3(startDistance + spacing * 6, 0, -20);  // 2.82f
+                jupiter.position = vec3(startDistance + spacing * 7, 0, -20); // 3.36f - Largest
+
+                // Still allow rotation in comparison mode
+                sun.rotationAngle += sun.rotationSpeed * animationDt;
+                mercury.rotationAngle += mercury.rotationSpeed * animationDt;
+                venus.rotationAngle += venus.rotationSpeed * animationDt;
+                earth.rotationAngle += earth.rotationSpeed * animationDt;
+                mars.rotationAngle += mars.rotationSpeed * animationDt;
+                jupiter.rotationAngle += jupiter.rotationSpeed * animationDt;
+                saturn.rotationAngle += saturn.rotationSpeed * animationDt;
+                uranus.rotationAngle += uranus.rotationSpeed * animationDt;
+                neptune.rotationAngle += neptune.rotationSpeed * animationDt;
+                moon.rotationAngle += moon.rotationSpeed * animationDt;
+            }
+            else
+            {
+                // Normal celestial body updates only when black hole is not active
+                updateCelestialBody(sun, sun.position, orbAngle, animationDt);
+                updateCelestialBody(mercury, sun.position, orbAngle, animationDt);
+                updateCelestialBody(venus, sun.position, orbAngle, animationDt);
+                updateCelestialBody(earth, sun.position, orbAngle, animationDt);
+                updateCelestialBody(mars, sun.position, orbAngle, animationDt);
+                updateCelestialBody(jupiter, sun.position, orbAngle, animationDt);
+                updateCelestialBody(saturn, sun.position, orbAngle, animationDt);
+                updateCelestialBody(uranus, sun.position, orbAngle, animationDt);
+                updateCelestialBody(neptune, sun.position, orbAngle, animationDt);
+                updateCelestialBody(moon, earth.position, orbAngle, animationDt);
+            }
+        }
+        // Update comets
+        updateComet(halleysComet, animationDt, sun.position);
+        updateComet(comet2, animationDt, sun.position);
+
+        // Collect all planet positions and radii for shadow calculations
+        vector<vec3> planetPositions = {
+            mercury.position,
+            venus.position,
+            earth.position,
+            mars.position,
+            jupiter.position,
+            saturn.position,
+            uranus.position,
+            neptune.position,
+            moon.position // Add moon for shadow calculations
+        };
+        vector<float> planetRadii = {
+            mercury.scale.x,
+            venus.scale.x,
+            earth.scale.x,
+            mars.scale.x,
+            jupiter.scale.x,
+            saturn.scale.x,
+            uranus.scale.x,
+            neptune.scale.x,
+            moon.scale.x // Add moon radius for shadow calculations
+        };
+
+        // Render all celestial bodies in order from sun outward - BUT ONLY IF VISIBLE
+        // Check if each body is large enough to be visible (scale > 0.01f means visible)
+        if (sun.scale.x > 0.01f)
+        {
+            renderCelestialBody(sun, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, true);
+        }
+        if (mercury.scale.x > 0.01f)
+        {
+            renderCelestialBody(mercury,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        if (venus.scale.x > 0.01f)
+        {
+            renderCelestialBody(venus,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        if (earth.scale.x > 0.01f)
+        {
+            renderCelestialBody(earth,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        if (mars.scale.x > 0.01f)
+        {
+            renderCelestialBody(mars,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        if (jupiter.scale.x > 0.01f)
+        {
+            renderCelestialBody(jupiter,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        if (saturn.scale.x > 0.01f)
+        {
+            renderCelestialBody(saturn,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        // Render Saturn's rings immediately after Saturn only if Saturn is visible
+        //if (saturn.scale.x > 0.01f) {
+        //    renderPlanetRings(saturnRings, saturn, shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position);
+        //}
+        if (uranus.scale.x > 0.01f)
+        {
+            renderCelestialBody(uranus,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        if (neptune.scale.x > 0.01f)
+        {
+            renderCelestialBody(neptune,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+        if (moon.scale.x > 0.01f)
+        {
+            renderCelestialBody(moon,
+                                shaders.orb,
+                                viewMatrix,
+                                projectionMatrix,
+                                sun.position,
+                                camera.position,
+                                false,
+                                planetPositions,
+                                planetRadii);
+        }
+
+        // Render comet trails first (so they appear behind comet heads)
+        renderCometTrail(halleysComet, shaders.base, viewMatrix, projectionMatrix);
+        renderCometTrail(comet2, shaders.base, viewMatrix, projectionMatrix);
+
+        // Render comet heads
+        renderCelestialBody(halleysComet.body,
+                            shaders.orb,
+                            viewMatrix,
+                            projectionMatrix,
+                            sun.position,
+                            camera.position,
+                            false,
+                            planetPositions,
+                            planetRadii);
+        renderCelestialBody(comet2.body,
+                            shaders.orb,
+                            viewMatrix,
+                            projectionMatrix,
+                            sun.position,
+                            camera.position,
+                            false,
+                            planetPositions,
+                            planetRadii);
+
+        // Render selection indicator if in planet selection mode
+        if (planetSelectionMode)
+        {
+            CelestialBody *selectedBody = planetSelector.getSelectedBody();
+            renderSelectionIndicator(selectedBody, shaders.selection, viewMatrix, projectionMatrix);
+        }
+
+        // Render info panel if visible
+        if (planetSelectionMode && infoPanel.visible)
+        {
+            renderInfoPanelOnScreen(infoPanel, shaders.ui, 800, 600);
+        }
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);
@@ -1458,54 +2742,57 @@ PlanetRing saturnRings = createSaturnRings();
         {
             glfwSetWindowShouldClose(window, true);
         }
-        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+
+        // Only allow manual camera mode switching when not in planet selection mode
+        if (!planetSelectionMode)
         {
-            camera.firstPerson = true;
-        }
-        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-        {
-            camera.firstPerson = false;
+            if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+            {
+                camera.firstPerson = true;
+            }
+            if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+            {
+                camera.firstPerson = false;
+            }
         }
 
-        // Update camera from mouse input
-        double mousePosX, mousePosY;
-        glfwGetCursorPos(window, &mousePosX, &mousePosY);
-        double dx = mousePosX - lastMousePosX;
-        double dy = mousePosY - lastMousePosY;
-        lastMousePosX = mousePosX;
-        lastMousePosY = mousePosY;
+        // Update camera from mouse input (only when not in planet selection mode)
+        if (!planetSelectionMode)
+        {
+            double mousePosX, mousePosY;
+            glfwGetCursorPos(window, &mousePosX, &mousePosY);
+            double dx = mousePosX - lastMousePosX;
+            double dy = mousePosY - lastMousePosY;
+            lastMousePosX = mousePosX;
+            lastMousePosY = mousePosY;
 
-        updateCameraAngles(
-            camera, 
-            static_cast<float>(dx), 
-            static_cast<float>(dy), 
-            dt
-        );
-        updateCameraPosition(camera, window, dt);
+            updateCameraAngles(camera, static_cast<float>(dx), static_cast<float>(dy), dt);
+            updateCameraPosition(camera, window, dt);
 
-        // Handle arrow key camera control
-        const float arrowLookSpeed = 60.0f;
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-        {
-            camera.horizontalAngle += arrowLookSpeed * dt;
+            // Handle arrow key camera control
+            const float arrowLookSpeed = 60.0f;
+            if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+            {
+                camera.horizontalAngle += arrowLookSpeed * dt;
+            }
+            if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+            {
+                camera.horizontalAngle -= arrowLookSpeed * dt;
+            }
+            if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+            {
+                camera.verticalAngle += arrowLookSpeed * dt;
+            }
+            if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+            {
+                camera.verticalAngle -= arrowLookSpeed * dt;
+            }
+
+            // Update camera look direction based on angles
+            float theta = radians(camera.horizontalAngle);
+            float phi = radians(camera.verticalAngle);
+            camera.lookAt = vec3(cos(phi) * cos(theta), sin(phi), -cos(phi) * sin(theta));
         }
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-        {
-            camera.horizontalAngle -= arrowLookSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-        {
-            camera.verticalAngle += arrowLookSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-        {
-            camera.verticalAngle -= arrowLookSpeed * dt;
-        }
-        
-        // Update camera look direction based on angles
-        float theta = radians(camera.horizontalAngle);
-        float phi = radians(camera.verticalAngle);
-        camera.lookAt = vec3(cos(phi) * cos(theta), sin(phi), -cos(phi) * sin(theta));
     }
 
     // Cleanup
