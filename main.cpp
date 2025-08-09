@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
     // JUPITER - Fifth planet, largest
     CelestialBody jupiter = CelestialBodyFactory::createCelestialBody("textures/jupiter.jpg",
                                                 3.36f, // Large size
-                                                22.0f, // Safe distance from Mars (was 10.0f)
+                                                20.0f, // Safe distance from Mars (was 10.0f)
                                                 0.5f,  // Slower orbital speed
                                                 30.0f  // Fast rotation speed
     );
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
     // SATURN - Sixth planet with rings
     CelestialBody saturn = CelestialBodyFactory::createCelestialBody("textures/saturn.jpg",
                                                2.82f, // Large size
-                                               28.0f, // Safe distance from Jupiter (was 14.0f)
+                                               36.0f, // Increased distance from Jupiter to accommodate rings
                                                0.35f, // Slow orbital speed
                                                28.0f  // Fast rotation speed
     );
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
     // URANUS - Seventh planet
     CelestialBody uranus = CelestialBodyFactory::createCelestialBody("textures/uranus.jpg",
                                                1.4f,  // Medium size
-                                               34.0f, // Safe distance from Saturn (was 18.0f)
+                                               50.0f, // Increased distance from Saturn to avoid ring collision
                                                0.25f, // Very slow orbital speed
                                                -15.0f // Retrograde rotation
     );
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
     // NEPTUNE - Outermost planet
     CelestialBody neptune = CelestialBodyFactory::createCelestialBody("textures/neptune.jpg",
                                                 1.17f, // Medium size
-                                                40.0f, // Safe distance from Uranus (was 22.0f)
+                                                55.0f, // Safe distance from Uranus (was 22.0f)
                                                 0.2f,  // Slowest orbital speed
                                                 18.0f  // Normal rotation speed
     );

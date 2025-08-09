@@ -19,10 +19,10 @@ void PlanetRing::render(const CelestialBody& planet,
     glUniform1i(glGetUniformLocation(shader, "texture1"), 0);
     glUniform1i(glGetUniformLocation(shader, "isSun"), 0); // Rings are not the sun
 
-    // Position rings at planet location
+    // Position rings at planet location and scale them with the planet while maintaining ring proportions
     mat4 worldMatrix = translate(mat4(1.0f), planet.position) *
                        rotate(mat4(1.0f), radians(-10.0f), vec3(1.0f, 0.0f, 0.0f)) *
-                       scale(mat4(1.0f), vec3(1.0f, 1.0f, 1.0f));
+                       scale(mat4(1.0f), vec3(planet.scale.x * 1.5f, planet.scale.y, planet.scale.z * 1.5f));
 
     glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
