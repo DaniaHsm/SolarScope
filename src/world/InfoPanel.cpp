@@ -6,7 +6,18 @@
 InfoPanel::InfoPanel() : visible(false), wasIPressed(false), fadeAlpha(0.0f), currentTexture(0) {}
 
 void InfoPanel::loadPlanetTextures() {
-    planetNames = {"sun", "mercury", "venus", "earth", "moon", "mars", "jupiter", "saturn", "uranus", "neptune"};
+    planetNames = {
+        "sun",
+        "mercury",
+        "mars",
+        "venus",
+        "earth",
+        "moon",
+        "neptune",
+        "uranus",
+        "saturn",
+        "jupiter",
+    };
 
     for (const std::string& planetName : planetNames) {
         std::string texturePath = "textures/planet_info/" + planetName + "_info.png";

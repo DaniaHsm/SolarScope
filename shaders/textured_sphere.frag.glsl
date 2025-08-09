@@ -18,6 +18,7 @@ uniform int numPlanets;                     // Number of planets
 
 bool isInShadow() {
     if (isSun) return false;
+    if (numPlanets == 0) return false;  // No shadow in comparison mode
     
     vec3 lightDir = normalize(lightPos - FragPos);
     float distanceToLight = length(lightPos - FragPos);

@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 
     // Setup planet selector with detailed information
     vector<CelestialBody *> allBodies =
-        {&sun, &mercury, &venus, &earth, &moon, &mars, &jupiter, &saturn, &uranus, &neptune};
+        {&sun, &mercury, &mars, &venus, &earth, &moon, &neptune, &uranus, &saturn, &jupiter};
     PlanetSelector planetSelector = PlanetSelector::setupWithInfo(allBodies);
 
     // Add info panel
@@ -654,31 +654,37 @@ int main(int argc, char *argv[])
         comet2.update(animationDt, sun.position);
 
         // Collect all planet positions and radii for shadow calculations
-        vector<vec3> planetPositions = {
-            mercury.position,
-            venus.position,
-            earth.position,
-            mars.position,
-            jupiter.position,
-            saturn.position,
-            uranus.position,
-            neptune.position,
-            moon.position
-        };
-        vector<float> planetRadii = {
-            mercury.scale.x,
-            venus.scale.x,
-            earth.scale.x,
-            mars.scale.x,
-            jupiter.scale.x,
-            saturn.scale.x,
-            uranus.scale.x,
-            neptune.scale.x,
-            moon.scale.x
-        };
+        vector<vec3> planetPositions;
+        vector<float> planetRadii;
+        
+        if (!comparisonMode) {
+            planetPositions = {
+                mercury.position,
+                venus.position,
+                earth.position,
+                mars.position,
+                jupiter.position,
+                saturn.position,
+                uranus.position,
+                neptune.position,
+                moon.position
+            };
+            planetRadii = {
+                mercury.scale.x,
+                venus.scale.x,
+                earth.scale.x,
+                mars.scale.x,
+                jupiter.scale.x,
+                saturn.scale.x,
+                uranus.scale.x,
+                neptune.scale.x,
+                moon.scale.x
+            };
+        }
 
         // Render all celestial bodies in order from sun outward - BUT ONLY IF VISIBLE
         // Check if each body is large enough to be visible (scale > 0.01f means visible)
+
         if (sun.scale.x > 0.01f)
         {
             sun.render(shaders.orb, viewMatrix, projectionMatrix, sun.position, camera.position, true);

@@ -26,8 +26,17 @@ PlanetSelector PlanetSelector::setupWithInfo(std::vector<CelestialBody*>& allBod
                                                "Temp: 427°C day, -173°C night",
                                                "No atmosphere or moons"));
 
-    // Venus
+    // Mars
     planetSelector.addCelestialBody(allBodies[2],
+                                    "Mars",
+                                    PlanetInfo("Mars",
+                                               "The Red Planet, our next home",
+                                               "Olympus Mons volcano: 21km high",
+                                               "Has polar ice caps and seasons",
+                                               "Day: 24h 37min (like Earth)"));
+
+    // Venus
+    planetSelector.addCelestialBody(allBodies[3],
                                     "Venus",
                                     PlanetInfo("Venus",
                                                "Hottest planet with toxic air",
@@ -36,7 +45,7 @@ PlanetSelector PlanetSelector::setupWithInfo(std::vector<CelestialBody*>& allBod
                                                "Rotates backward (retrograde)"));
 
     // Earth
-    planetSelector.addCelestialBody(allBodies[3],
+    planetSelector.addCelestialBody(allBodies[4],
                                     "Earth",
                                     PlanetInfo("Earth",
                                                "Our beautiful blue marble",
@@ -45,7 +54,7 @@ PlanetSelector PlanetSelector::setupWithInfo(std::vector<CelestialBody*>& allBod
                                                "Protected by magnetic field"));
 
     // Moon
-    planetSelector.addCelestialBody(allBodies[4],
+    planetSelector.addCelestialBody(allBodies[5],
                                     "Moon",
                                     PlanetInfo("Moon",
                                                "Earth's loyal companion",
@@ -53,35 +62,17 @@ PlanetSelector PlanetSelector::setupWithInfo(std::vector<CelestialBody*>& allBod
                                                "Created Earth's 24-hour day cycle",
                                                "Made from rock blasted from Earth"));
 
-    // Mars
-    planetSelector.addCelestialBody(allBodies[5],
-                                    "Mars",
-                                    PlanetInfo("Mars",
-                                               "The Red Planet, our next home",
-                                               "Olympus Mons volcano: 21km high",
-                                               "Has polar ice caps and seasons",
-                                               "Day: 24h 37min (like Earth)"));
-
-    // Jupiter
+    // Neptune
     planetSelector.addCelestialBody(allBodies[6],
-                                    "Jupiter",
-                                    PlanetInfo("Jupiter",
-                                               "Giant protector with Great Red Spot",
-                                               "Mass: 2.5x all other planets combined",
-                                               "Great Red Spot: storm larger than Earth",
-                                               "Has 95 moons including 4 major ones"));
-
-    // Saturn
-    planetSelector.addCelestialBody(allBodies[7],
-                                    "Saturn",
-                                    PlanetInfo("Saturn",
-                                               "Ringed beauty, less dense than water",
-                                               "Density: 0.69 g/cm³ (would float!)",
-                                               "Rings made of ice and rock particles",
-                                               "Moon Titan has thick atmosphere"));
+                                    "Neptune",
+                                    PlanetInfo("Neptune",
+                                               "Windiest planet with supersonic storms",
+                                               "Wind speeds: up to 2,100 km/h",
+                                               "Takes 165 Earth years to orbit Sun",
+                                               "Blue color from methane gas"));
 
     // Uranus
-    planetSelector.addCelestialBody(allBodies[8],
+    planetSelector.addCelestialBody(allBodies[7],
                                     "Uranus",
                                     PlanetInfo("Uranus",
                                                "Tilted ice giant on its side",
@@ -89,14 +80,23 @@ PlanetSelector PlanetSelector::setupWithInfo(std::vector<CelestialBody*>& allBod
                                                "Made of water, methane & ammonia ice",
                                                "Has faint rings found in 1977"));
 
-    // Neptune
+    // Saturn
+    planetSelector.addCelestialBody(allBodies[8],
+                                    "Saturn",
+                                    PlanetInfo("Saturn",
+                                               "Ringed beauty, less dense than water",
+                                               "Density: 0.69 g/cm³ (would float!)",
+                                               "Rings made of ice and rock particles",
+                                               "Moon Titan has thick atmosphere"));
+
+    // Jupiter
     planetSelector.addCelestialBody(allBodies[9],
-                                    "Neptune",
-                                    PlanetInfo("Neptune",
-                                               "Windiest planet with supersonic storms",
-                                               "Wind speeds: up to 2,100 km/h",
-                                               "Takes 165 Earth years to orbit Sun",
-                                               "Blue color from methane gas"));
+                                    "Jupiter",
+                                    PlanetInfo("Jupiter",
+                                               "Giant protector with Great Red Spot",
+                                               "Mass: 2.5x all other planets combined",
+                                               "Great Red Spot: storm larger than Earth",
+                                               "Has 95 moons including 4 major ones"));
 
     return planetSelector;
 }
