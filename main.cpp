@@ -18,20 +18,16 @@
 #include "include/BlackHole.hpp"
 #include "include/Camera.hpp"
 #include "include/CelestialBody.hpp"
-#include "include/CelestialBodyFactory.hpp"
 #include "include/Comet.hpp"
-#include "include/CometFactory.hpp"
 #include "include/InfoPanel.hpp"
 #include "include/Mesh.hpp"
 #include "include/Model.hpp"
 #include "include/PlanetInfo.hpp"
 #include "include/PlanetRing.hpp"
-#include "include/PlanetRingFactory.hpp"
 #include "include/PlanetSelector.hpp"
 #include "include/ShaderPrograms.hpp"
 #include "include/ShaderUtils.hpp"
 #include "include/Skybox.hpp"
-#include "include/SkyboxFactory.hpp"
 #include "include/SphereGeometry.hpp"
 #include "include/TextureLoader.hpp"
 #include "include/TrailPoint.hpp"
@@ -84,16 +80,15 @@ int main(int argc, char *argv[])
     // Using a scale where Earth = 0.3f as base reference
 
     /// SUN - Center of the system
-    CelestialBody sun = CelestialBodyFactory::createCelestialBody("textures/sun.jpg",
-                                            4.0f, // Large but viewable size
-                                            0.0f, // No orbit - center of system
-                                            0.0f, // No orbital movement
-                                            15.0f // Rotation speed
-    );
+    CelestialBody sun = CelestialBody::create("textures/sun.jpg",
+                                      4.0f,   // Scale
+                                      0.0f,   // Orbit radius
+                                      0.0f,   // Orbit speed
+                                      15.0f);  // Rotation speed
     sun.position = vec3(0.0f, 0.0f, -20.0f);
 
     // MERCURY - Smallest planet, closest orbit
-    CelestialBody mercury = CelestialBodyFactory::createCelestialBody("textures/mercury.jpg",
+    CelestialBody mercury = CelestialBody::create("textures/mercury.jpg",
                                                 0.11f, // Small size
                                                 8.0f,  // Safe distance from sun (was 3.0f)
                                                 2.0f,  // Fastest orbital speed
@@ -101,7 +96,7 @@ int main(int argc, char *argv[])
     );
 
     // VENUS - Second planet
-    CelestialBody venus = CelestialBodyFactory::createCelestialBody("textures/venus.jpg",
+    CelestialBody venus = CelestialBody::create("textures/venus.jpg",
                                               0.28f, // Venus size
                                               10.0f, // Safe distance from mercury (was 4.5f)
                                               1.6f,  // Orbital speed
@@ -109,7 +104,7 @@ int main(int argc, char *argv[])
     );
 
     // EARTH - Third planet
-    CelestialBody earth = CelestialBodyFactory::createCelestialBody("textures/earth.jpg",
+    CelestialBody earth = CelestialBody::create("textures/earth.jpg",
                                               0.35f, // Earth size
                                               12.0f, // Safe distance from venus (was 6.0f)
                                               1.0f,  // Earth orbital speed reference
@@ -117,7 +112,7 @@ int main(int argc, char *argv[])
     );
 
     // MOON - Orbits Earth
-    CelestialBody moon = CelestialBodyFactory::createCelestialBody("textures/moon.jpg",
+    CelestialBody moon = CelestialBody::create("textures/moon.jpg",
                                              0.08f, // Small moon size
                                              1.2f,  // Distance from Earth (increased from 1.0f)
                                              4.0f,  // Fast orbit around Earth
@@ -125,7 +120,7 @@ int main(int argc, char *argv[])
     );
 
     // MARS - Fourth planet
-    CelestialBody mars = CelestialBodyFactory::createCelestialBody("textures/mars.jpg",
+    CelestialBody mars = CelestialBody::create("textures/mars.jpg",
                                              0.16f, // Mars size
                                              15.0f, // Safe distance from Earth (was 7.5f)
                                              0.8f,  // Slower orbital speed than Earth
@@ -133,7 +128,7 @@ int main(int argc, char *argv[])
     );
 
     // JUPITER - Fifth planet, largest
-    CelestialBody jupiter = CelestialBodyFactory::createCelestialBody("textures/jupiter.jpg",
+    CelestialBody jupiter = CelestialBody::create("textures/jupiter.jpg",
                                                 3.36f, // Large size
                                                 20.0f, // Safe distance from Mars (was 10.0f)
                                                 0.5f,  // Slower orbital speed
@@ -141,7 +136,7 @@ int main(int argc, char *argv[])
     );
 
     // SATURN - Sixth planet with rings
-    CelestialBody saturn = CelestialBodyFactory::createCelestialBody("textures/saturn.jpg",
+    CelestialBody saturn = CelestialBody::create("textures/saturn.jpg",
                                                2.82f, // Large size
                                                36.0f, // Increased distance from Jupiter to accommodate rings
                                                0.35f, // Slow orbital speed
@@ -149,7 +144,7 @@ int main(int argc, char *argv[])
     );
 
     // URANUS - Seventh planet
-    CelestialBody uranus = CelestialBodyFactory::createCelestialBody("textures/uranus.jpg",
+    CelestialBody uranus = CelestialBody::create("textures/uranus.jpg",
                                                1.4f,  // Medium size
                                                50.0f, // Increased distance from Saturn to avoid ring collision
                                                0.25f, // Very slow orbital speed
@@ -157,20 +152,20 @@ int main(int argc, char *argv[])
     );
 
     // NEPTUNE - Outermost planet
-    CelestialBody neptune = CelestialBodyFactory::createCelestialBody("textures/neptune.jpg",
+    CelestialBody neptune = CelestialBody::create("textures/neptune.jpg",
                                                 1.17f, // Medium size
                                                 55.0f, // Safe distance from Uranus (was 22.0f)
                                                 0.2f,  // Slowest orbital speed
                                                 18.0f  // Normal rotation speed
     );
 
-    Comet halleysComet = CometFactory::createComet("textures/comet.jpg", vec3(0.0f, 0.0f, -20.0f), 45.0f, 0.85f);
+    Comet halleysComet = Comet::create("textures/comet.jpg", vec3(0.0f, 0.0f, -20.0f), 45.0f, 0.85f);
 
-    Comet comet2 = CometFactory::createComet("textures/comet.jpg", vec3(0.0f, 0.0f, -20.0f), 25.0f, 0.7f);
+    Comet comet2 = Comet::create("textures/comet.jpg", vec3(0.0f, 0.0f, -20.0f), 25.0f, 0.7f);
     comet2.orbitAngle = 180.0f; // Start on opposite side
 
     // Create Saturn's rings
-    PlanetRing saturnRings = PlanetRingFactory::createSaturnRings();
+    PlanetRing saturnRings = PlanetRing::createSaturnRings();
 
     // Setup planet selector with detailed information
     vector<CelestialBody *> allBodies =
@@ -234,7 +229,7 @@ int main(int argc, char *argv[])
                                             "textures/skybox/4.png",
                                             "textures/skybox/5.png",
                                             "textures/skybox/6.png"};
-    Skybox skybox = SkyboxFactory::createSkybox(skyboxFaces);
+    Skybox skybox = Skybox::create(skyboxFaces);
 
     // Initialize animation variables
     float spinningCubeAngle = 0.0f;
@@ -654,8 +649,8 @@ int main(int argc, char *argv[])
             }
         }
         // Update comets
-		CometFactory::updateComet(halleysComet, animationDt, sun.position);
-        CometFactory::updateComet(comet2, animationDt, sun.position);
+		halleysComet.update(animationDt, sun.position);
+        comet2.update(animationDt, sun.position);
 
         // Collect all planet positions and radii for shadow calculations
         vector<vec3> planetPositions = {
@@ -792,11 +787,9 @@ int main(int argc, char *argv[])
         }
 
         // Render comet trails first (so they appear behind comet heads)
-        CometFactory::renderCometTrail(halleysComet, shaders.base, viewMatrix, projectionMatrix);
-
-        CometFactory::renderCometTrail(comet2, shaders.base, viewMatrix, projectionMatrix);
-
-        // Render comet heads
+        halleysComet.renderTrail(shaders.base, viewMatrix, projectionMatrix);
+        
+        comet2.renderTrail(shaders.base, viewMatrix, projectionMatrix);        // Render comet heads
         halleysComet.body.render(shaders.orb,
                                   viewMatrix,
                                   projectionMatrix,

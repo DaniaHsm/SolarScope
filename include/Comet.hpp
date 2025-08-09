@@ -17,6 +17,20 @@ public:
     int maxTrailPoints;            // Maximum trail length
     float lastTrailUpdate;         // Time tracking for trail updates
 
+    // Factory method to create a comet
+    static Comet create(const char* texturePath,
+                       const glm::vec3& orbitCenter,
+                       float semiMajorAxis,
+                       float eccentricity);
+
+    // Update comet's position and trail
+    void update(float dt, const glm::vec3& sunPosition);
+
     void updateTrail(float currentTime, const glm::vec3& sunPosition);
     void updateTrailVBO();
+
+    // Render the comet's trail
+    void renderTrail(GLuint shader, 
+                    const glm::mat4& viewMatrix, 
+                    const glm::mat4& projectionMatrix) const;
 };

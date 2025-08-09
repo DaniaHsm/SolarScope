@@ -10,6 +10,9 @@ struct PlanetRing {
     float innerRadius;
     float outerRadius;
 
+    // Factory method to create Saturn's rings
+    static PlanetRing createSaturnRings();
+
     // Render the planet ring
     void render(const CelestialBody& planet,
                 GLuint shader,

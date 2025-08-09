@@ -1,7 +1,52 @@
 #include "Comet.hpp"
-#include "CelestialBodyFactory.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
+
+Comet Comet::create(const char* texturePath,
+                    const glm::vec3& orbitCenter,
+                    float semiMajorAxis,
+                    float eccentricity) {
+    Comet comet;
+
+    // Create the comet head using CelestialBody factory method
+    comet.body = CelestialBody::create(texturePath, 0.05f, 0.0f, 0.0f, 10.0f);
+
+    // Set up orbital parameters
+    comet.orbitCenter = orbitCenter;
+    comet.semiMajorAxis = semiMajorAxis;
+    comet.eccentricity = eccentricity;
+    comet.orbitAngle = 0.0f;
+    comet.maxTrailPoints = 150; // Long, visible trail
+    comet.lastTrailUpdate = 0.0f;
+
+    // Set up trail rendering
+    glGenVertexArrays(1, &comet.trailVAO);
+    glGenBuffers(1, &comet.trailVBO);
+
+    return comet;
+}
+
+void Comet::update(float dt, const glm::vec3& sunPosition) {
+    // Update orbital position
+    orbitAngle += 0.5f * dt; // Slow orbital speed
+
+    // Calculate elliptical orbit position
+    float a = semiMajorAxis; // Semi-major axis
+    float e = eccentricity;  // Eccentricity
+
+    // Elliptical orbit math
+    float r = a * (1.0f - e * e) / (1.0f + e * cos(orbitAngle));
+    float x = r * cos(orbitAngle);
+    float z = r * sin(orbitAngle);
+
+    body.position = orbitCenter + glm::vec3(x, 0.0f, z);
+
+    // Update rotation
+    body.rotationAngle += body.rotationSpeed * dt;
+
+    // Update trail
+    updateTrail(glfwGetTime(), sunPosition);
+}
 
 void Comet::updateTrail(float currentTime, const glm::vec3& sunPosition) {
     // Add new trail point every 0.1 seconds
@@ -30,6 +75,31 @@ void Comet::updateTrail(float currentTime, const glm::vec3& sunPosition) {
     }
 
     updateTrailVBO();
+}
+
+void Comet::renderTrail(GLuint shader, 
+                         const glm::mat4& viewMatrix, 
+                         const glm::mat4& projectionMatrix) const {
+    if (trail.size() < 2)
+        return;
+
+    glUseProgram(shader);
+    glBindVertexArray(trailVAO);
+
+    // Set matrices
+    glm::mat4 worldMatrix(1.0f); // Identity - trail points are in world space
+    glUniformMatrix4fv(glGetUniformLocation(shader, "worldMatrix"), 1, GL_FALSE, &worldMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "viewMatrix"), 1, GL_FALSE, &viewMatrix[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projectionMatrix"), 1, GL_FALSE, &projectionMatrix[0][0]);
+
+    // Enable blending for trail transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Draw trail as line strip
+    glDrawArrays(GL_LINE_STRIP, 0, trail.size());
+
+    glDisable(GL_BLEND);
 }
 
 void Comet::updateTrailVBO() {

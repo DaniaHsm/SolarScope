@@ -15,6 +15,13 @@ struct CelestialBody {
     float orbitRadius;       // Distance from the center of orbit
     float orbitSpeed;        // Speed of orbital movement
 
+    // Factory method to create a celestial body
+    static CelestialBody create(const char* texturePath,
+                               float scale,
+                               float orbitRadius,
+                               float orbitSpeed,
+                               float rotationSpeed);
+
     // Update the celestial body's position and rotation
     void update(const glm::vec3& centerPosition, float baseAngle, float dt);
     
