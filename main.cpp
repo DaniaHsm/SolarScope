@@ -13,7 +13,7 @@
 
 #define GLEW_STATIC 1
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "include/stb_image.h"
 
 #include "include/models/Mesh.hpp"
 #include "include/models/Model.hpp"
@@ -607,18 +607,20 @@ int main(int argc, char *argv[])
                 // Line up planets by size from smallest to largest, moving away from sun
                 // Position them so sun light can reach all of them (no shadows)
 
-                float spacing = 8.0f;       // Distance between each planet
-                float startDistance = 5.0f; // Distance from sun position to first planet
-
+                float baseSpacing = 8.0f;    // Base distance between each planet
+                float saturnExtra = 4.0f;    // Extra spacing around Saturn for rings
+                float startDistance = 5.0f;   // Distance from sun position to first planet
+                
+                // Calculate positions with extra space around Saturn
                 mercury.position = vec3(startDistance, 0, -20);               // 0.11f - Smallest
-                mars.position = vec3(startDistance + spacing * 1, 0, -20);    // 0.16f - Mars is smaller than Earth!
-                venus.position = vec3(startDistance + spacing * 2, 0, -20);   // 0.28f
-                earth.position = vec3(startDistance + spacing * 3, 0, -20);   // 0.3f
-                moon.position = vec3(startDistance + spacing * 3.3f, 2, -20); // Moon near Earth
-                neptune.position = vec3(startDistance + spacing * 4, 0, -20); // 1.17f - Neptune is smaller than Uranus!
-                uranus.position = vec3(startDistance + spacing * 5, 0, -20);  // 1.2f
-                saturn.position = vec3(startDistance + spacing * 6, 0, -20);  // 2.82f
-                jupiter.position = vec3(startDistance + spacing * 7, 0, -20); // 3.36f - Largest
+                mars.position = vec3(startDistance + baseSpacing * 1, 0, -20);    // 0.16f - Mars is smaller than Earth!
+                venus.position = vec3(startDistance + baseSpacing * 2, 0, -20);   // 0.28f
+                earth.position = vec3(startDistance + baseSpacing * 3, 0, -20);   // 0.3f
+                moon.position = vec3(startDistance + baseSpacing * 3.3f, 2, -20); // Moon near Earth
+                neptune.position = vec3(startDistance + baseSpacing * 4, 0, -20); // 1.17f - Neptune is smaller than Uranus!
+                uranus.position = vec3(startDistance + baseSpacing * 5, 0, -20);  // 1.2f
+                saturn.position = vec3(startDistance + baseSpacing * 6 + saturnExtra, 0, -20);  // 2.82f - Extra space for rings
+                jupiter.position = vec3(startDistance + baseSpacing * 7 + saturnExtra * 2.5, 0, -20); // 3.36f - Largest
 
                 // Still allow rotation in comparison mode
                 sun.rotationAngle += sun.rotationSpeed * animationDt;
