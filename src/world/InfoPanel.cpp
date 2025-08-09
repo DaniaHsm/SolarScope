@@ -1,5 +1,5 @@
-#include "InfoPanel.hpp"
-#include "TextureLoader.hpp"
+#include "include/world/InfoPanel.hpp"
+#include "include/utils/TextureUtils.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -12,12 +12,11 @@ void InfoPanel::loadPlanetTextures() {
         std::string texturePath = "textures/planet_info/" + planetName + "_info.png";
         std::cout << "Attempting to load: " << texturePath << std::endl;
 
-        GLuint texture = TextureLoader::loadTexture(texturePath.c_str());
+        GLuint texture = TextureUtils::loadTexture(texturePath.c_str());
         if (texture == 0) {
             std::cout << "Warning: Failed to load planet info texture for " << planetName << std::endl;
-            texture = TextureLoader::loadTexture("textures/default.png");
             if (texture == 0) {
-                texture = TextureLoader::loadTexture("textures/sun.jpg");
+                texture = TextureUtils::loadTexture("textures/planet/sun.jpg");
             }
         } else {
             std::cout << "Successfully loaded texture for " << planetName << " with ID: " << texture << std::endl;
@@ -232,76 +231,3 @@ void InfoPanel::handleInput(GLFWwindow* window, const PlanetInfo& currentPlanetI
 
     wasIPressed = iPressed;
 }
-
-
-// // Create textured quad vertices
-// float vertices[] = {
-//     // Positions                           // Texture Coords (Fixed horizontal only)
-//     panelX,
-//     panelY,
-//     0.0f,
-//     1.0f, // Bottom-left -> Bottom-right in texture
-//     panelX + panelWidth,
-//     panelY,
-//     1.0f,
-//     1.0f, // Bottom-right -> Bottom-left in texture
-//     panelX + panelWidth,
-//     panelY + panelHeight,
-//     1.0f,
-//     0.0f, // Top-right -> Top-left in texture
-//     panelX,
-//     panelY + panelHeight,
-//     0.0f,
-//     0.0f // Top-left -> Top-right in texture
-// };
-
-// unsigned int indices[] = {
-//     0,
-//     1,
-//     2, // First triangle
-//     2,
-//     3,
-//     0 // Second triangle
-// };
-
-// static GLuint VAO = 0, VBO = 0, EBO = 0;
-
-// // Create buffers if not already created
-// if (VAO == 0)
-// {
-//     glGenVertexArrays(1, &VAO);
-//     glGenBuffers(1, &VBO);
-//     glGenBuffers(1, &EBO);
-// }
-
-// glBindVertexArray(VAO);
-
-// glBindBuffer(GL_ARRAY_BUFFER, VBO);
-// glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-
-// glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-// glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-// // Position attribute
-// glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
-// glEnableVertexAttribArray(0);
-
-// // Texture coordinate attribute
-// glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
-// glEnableVertexAttribArray(1);
-
-// // Bind the planet info texture
-// glActiveTexture(GL_TEXTURE0);
-// glBindTexture(GL_TEXTURE_2D, panel.currentTexture);
-// glUniform1i(glGetUniformLocation(uiShader, "ourTexture"), 0);
-
-// // Set projection matrix and alpha
-// glUniformMatrix4fv(glGetUniformLocation(uiShader, "projection"), 1, GL_FALSE, &orthoProjection[0][0]);
-// glUniform1f(glGetUniformLocation(uiShader, "alpha"), panel.fadeAlpha);
-
-// // Draw the textured quad
-// glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-// glEnable(GL_DEPTH_TEST);
-// glDisable(GL_BLEND);
-// }

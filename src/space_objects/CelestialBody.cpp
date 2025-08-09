@@ -1,6 +1,6 @@
-#include "CelestialBody.hpp"
-#include "SphereGeometry.hpp"
-#include "TextureLoader.hpp"
+#include "include/space_objects/CelestialBody.hpp"
+#include "include/utils/SphereUtils.hpp"
+#include "include/utils/TextureUtils.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
@@ -17,8 +17,8 @@ CelestialBody CelestialBody::create(const char* texturePath,
     body.rotationSpeed = rotationSpeed;
     body.rotationAngle = 0.0f;
 
-    body.vao = SphereGeometry::createTexturedSphereVAO(40, 40, body.indexCount);
-    body.texture = TextureLoader::loadTexture(texturePath);
+    body.vao = SphereUtils::createTexturedSphereVAO(40, 40, body.indexCount);
+    body.texture = TextureUtils::loadTexture(texturePath);
 
     return body;
 }

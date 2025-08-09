@@ -1,6 +1,5 @@
-#include "include/Camera.hpp"
-#include "include/CelestialBody.hpp"
-#include "CelestialBody.hpp"
+#include "include/space_objects/CelestialBody.hpp"
+#include "include/world/Camera.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

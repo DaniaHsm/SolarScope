@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <GL/glew.h>
 
-class SphereGeometry {
+class SphereUtils {
 public:
     static void generateSphereVerticesAndUVs(unsigned int rings,
                                            unsigned int sectors,

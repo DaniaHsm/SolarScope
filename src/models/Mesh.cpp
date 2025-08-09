@@ -1,4 +1,4 @@
-#include "Mesh.hpp"
+#include "include/models/Mesh.hpp"
 #include <iostream>
 
 void Mesh::setupMesh() {

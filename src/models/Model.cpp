@@ -1,5 +1,6 @@
-#include "Model.hpp"
-#include "TextureLoader.hpp"
+#include "include/utils/TextureUtils.hpp"
+#include "include/models/Mesh.hpp"
+#include "include/models/Model.hpp"
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <glm/glm.hpp>
@@ -81,7 +82,7 @@ void Model::processNode(Model& model, aiNode* node, const aiScene* scene) {
                 if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
                     std::string fullPath = std::string("models/rubber_duck/textures/material_baseColor.jpeg");
                     std::cout << "Loading texture from: " << fullPath << std::endl;
-                    newMesh.texture = TextureLoader::loadTexture(fullPath.c_str());
+                    newMesh.texture = TextureUtils::loadTexture(fullPath.c_str());
                     if (newMesh.texture == 0)
                     {
                         std::cerr << "Failed to load texture!" << std::endl;

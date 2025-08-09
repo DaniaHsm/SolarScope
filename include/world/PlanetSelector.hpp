@@ -4,8 +4,8 @@
 #include <iostream>
 #include <GL/glew.h>
 #include <glm/glm.hpp>
-#include "CelestialBody.hpp"
-#include "PlanetInfo.hpp"
+#include "include/space_objects/CelestialBody.hpp"
+#include "include/world/PlanetInfo.hpp"
 
 class PlanetSelector {
 public:

@@ -5,16 +5,16 @@
 
 class BlackHole {
 public:
+
     glm::vec3 position;
     float strength;
     bool active;
     float activationTime;
     std::vector<glm::vec3> originalPositions;  // Positions when X was pressed
     std::vector<glm::vec3> originalScales;     // Scales when X was pressed
-    std::vector<glm::vec3> resetPositions;     // Orbital positions to return to when R is pressed
-    std::vector<glm::vec3> resetScales;        // Original scales to return to when R is pressed
+    std::vector<glm::vec3> resetPositions;     // OG positions on R
+    std::vector<glm::vec3> resetScales;        // OG scales on R
 
-    BlackHole();
+    // Default constructor
+    static BlackHole create();
 };
-
-BlackHole createBlackHole(glm::vec3 center, const std::vector<CelestialBody*>& bodies);

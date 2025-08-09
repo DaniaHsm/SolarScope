@@ -1,4 +1,4 @@
-#include "Skybox.hpp"
+#include "include/world/Skybox.hpp"
 #include <glm/gtc/type_ptr.hpp>
 #include <stb_image.h>
 #include <iostream>

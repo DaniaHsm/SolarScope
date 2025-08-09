@@ -1,4 +1,4 @@
-#include "Comet.hpp"
+#include "include/space_objects/Comet.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 

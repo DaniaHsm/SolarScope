@@ -1,7 +1,7 @@
-#include "TextureLoader.hpp"
+#include "include/utils/TextureUtils.hpp"
 #include "stb_image.h"
 
-GLuint TextureLoader::loadTexture(const char* path) {
+GLuint TextureUtils::loadTexture(const char* path) {
     GLuint textureID;
     glGenTextures(1, &textureID);
 

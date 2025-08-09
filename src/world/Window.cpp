@@ -1,4 +1,4 @@
-#include "Window.hpp"
+#include "include/world/Window.hpp"
 
 GLFWwindow* Window::initializeGLFW() {
     if (!glfwInit()) {

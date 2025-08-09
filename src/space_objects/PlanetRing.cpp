@@ -1,8 +1,8 @@
-#include "PlanetRing.hpp"
-#include "TextureLoader.hpp"
-#include "SphereGeometry.hpp"
-#include <glm/gtc/matrix_transform.hpp>
+#include "include/space_objects/PlanetRing.hpp"
+#include "include/utils/SphereUtils.hpp"
+#include "include/utils/TextureUtils.hpp"
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
 using namespace glm;
@@ -47,9 +47,9 @@ PlanetRing PlanetRing::createSaturnRings() {
         indices.push_back(i + 2);
     }
 
-    ring.vao = SphereGeometry::setupSphereBuffers(vertices, uvs, indices);
+    ring.vao = SphereUtils::setupSphereBuffers(vertices, uvs, indices);
     ring.indexCount = indices.size();
-    ring.texture = TextureLoader::loadTexture("textures/saturn_rings.png");
+    ring.texture = TextureUtils::loadTexture("textures/planet/saturn_rings.png");
     ring.innerRadius = innerRadius;
     ring.outerRadius = outerRadius;
 

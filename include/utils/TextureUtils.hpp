@@ -3,7 +3,7 @@
 #include <string>
 #include <iostream>
 
-class TextureLoader {
+class TextureUtils {
 public:
     static GLuint loadTexture(const char* path);
 };

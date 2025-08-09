@@ -1,7 +1,7 @@
-#include "SphereGeometry.hpp"
+#include "include/utils/SphereUtils.hpp"
 #include <glm/gtc/constants.hpp>
 
-void SphereGeometry::generateSphereVerticesAndUVs(unsigned int rings,
+void SphereUtils::generateSphereVerticesAndUVs(unsigned int rings,
                                                  unsigned int sectors,
                                                  std::vector<glm::vec3>& vertices,
                                                  std::vector<glm::vec2>& uvs) {
@@ -23,7 +23,7 @@ void SphereGeometry::generateSphereVerticesAndUVs(unsigned int rings,
     }
 }
 
-void SphereGeometry::generateSphereIndices(unsigned int rings,
+void SphereUtils::generateSphereIndices(unsigned int rings,
                                          unsigned int sectors,
                                          std::vector<unsigned int>& indices) {
     for (unsigned int r = 0; r < rings - 1; ++r) {
@@ -44,7 +44,7 @@ void SphereGeometry::generateSphereIndices(unsigned int rings,
     }
 }
 
-GLuint SphereGeometry::setupSphereBuffers(const std::vector<glm::vec3>& vertices,
+GLuint SphereUtils::setupSphereBuffers(const std::vector<glm::vec3>& vertices,
                                         const std::vector<glm::vec2>& uvs,
                                         const std::vector<unsigned int>& indices) {
     GLuint vao, vbo[2], ebo;
@@ -71,7 +71,7 @@ GLuint SphereGeometry::setupSphereBuffers(const std::vector<glm::vec3>& vertices
     return vao;
 }
 
-GLuint SphereGeometry::createTexturedSphereVAO(unsigned int rings,
+GLuint SphereUtils::createTexturedSphereVAO(unsigned int rings,
                                               unsigned int sectors,
                                               unsigned int& indexCount) {
     std::vector<glm::vec3> vertices;
