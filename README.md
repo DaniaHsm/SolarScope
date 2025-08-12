@@ -60,18 +60,18 @@ Welcome to SolarScope! An interactive 3D solar system simulation that brings ast
 
 ## Project Requirements Compliance:
 
-### Assignment 1 Requirements ✅
-- **✅ Interactive Camera**: Mouse/keyboard controls with rotation and translation relative to facing direction
-- **✅ Multiple Textured Surfaces**: All planets, sun, moon, and comet use unique textures
-- **✅ Hierarchical Animation**: 2+ levels deep - planets orbit sun, moon orbits Earth (orrery system)
-- **✅ Library Compliance**: Uses only OpenGL, GLFW, GLM, GLEW, stb_image.h, Assimp, C++ standard library
+### Assignment 1 Requirements
+- **Interactive Camera**: Mouse/keyboard controls with rotation and translation relative to facing direction
+- **Multiple Textured Surfaces**: All planets, sun, moon, and comet use unique textures
+- **Hierarchical Animation**: 2+ levels deep - planets orbit sun, moon orbits Earth (orrery system)
+- **Library Compliance**: Uses only OpenGL, GLFW, GLM, GLEW, stb_image.h, Assimp, C++ standard library
 
-### Assignment 2 Requirements ✅
-- **✅ Dynamic Lighting with Phong Model**: Sun acts as moving light source with realistic Phong lighting
-- **✅ Complex 3D Models**: Duck model loaded via Assimp from GLTF file format
-- **✅ Dynamic Shadows**: Planets cast realistic shadows on each other based on sun position
-- **✅ Interactive Elements**: Planet selection, time control, black hole effects, comparison mode
-- **✅ Advanced Camera System**: Multiple camera modes including planet tracking and free fly
+### Assignment 2 Requirements 
+- **Dynamic Lighting with Phong Model**: Sun acts as moving light source with realistic Phong lighting
+- **Complex 3D Models**: Duck model loaded via Assimp from GLTF file format
+- **Dynamic Shadows**: Planets cast realistic shadows on each other based on sun position
+- **Interactive Elements**: Planet selection, time control, black hole effects, comparison mode
+- **Advanced Camera System**: Multiple camera modes including planet tracking and free fly
 
 ### **Technical Implementation:**
 - **Lighting System**: Phong lighting model with sun as primary light source
@@ -82,12 +82,12 @@ Welcome to SolarScope! An interactive 3D solar system simulation that brings ast
 - **Shader Programs**: Multiple specialized shaders (celestial, skybox, UI, model rendering)
 
 ### **Advanced Features Beyond Requirements:**
-- 🌟 **Black Hole Physics**: Gravitational collapse with realistic visual effects
-- 🌟 **Time Manipulation**: Variable speed controls including complete time reversal  
-- 🌟 **Educational Info Panels**: Interactive planet data with custom texture overlays
-- 🌟 **Elliptical Comet Orbits**: Realistic comet physics with dynamic particle trails
-- 🌟 **Multi-Mode Integration**: Seamlessly combine different viewing modes
-- 🌟 **Cosmic Environment**: 360° space skybox with atmospheric effects
+-  **Black Hole Physics**: Gravitational collapse with realistic visual effects
+-  **Time Manipulation**: Variable speed controls including complete time reversal  
+-  **Educational Info Panels**: Interactive planet data with custom texture overlays
+-  **Elliptical Comet Orbits**: Realistic comet physics with dynamic particle trails
+-  **Multi-Mode Integration**: Seamlessly combine different viewing modes
+-  **Cosmic Environment**: 360° space skybox with atmospheric effects
 
 ## Contributors:
 - Yusuf Chahal
