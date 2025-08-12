@@ -93,3 +93,4 @@ Welcome to SolarScope! An interactive 3D solar system simulation that brings ast
 - Yusuf Chahal
 - Dania Houssami
 - Mohammad Alshikh
+- Ava Samimi
