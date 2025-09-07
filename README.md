@@ -1,6 +1,9 @@
-SolarScope: Solar System Simulation
+# SolarScope: Solar System Simulation
 
 Welcome to SolarScope! An interactive 3D solar system simulation that brings astronomy education to life. This project allows users to explore planetary sizes and orbital mechanics, observe realistic shadow effects between celestial bodies, and experience extreme gravitational phenomena through our black hole simulation. Read the following guide to learn how to navigate and interact with our solar system. 
+
+<img width="395" height="293" alt="image" src="https://github.com/user-attachments/assets/c616b2cc-58c1-49d7-ad51-a5721c6858a6" />
+<img width="397" height="288" alt="image" src="https://github.com/user-attachments/assets/a3be33e3-deb8-4a23-a171-ebccb59ed759" />
 
 ### **Libraries Used:**
 - glfw 3.4
@@ -93,4 +96,3 @@ Welcome to SolarScope! An interactive 3D solar system simulation that brings ast
 - Yusuf Chahal
 - Dania Houssami
 - Mohammad Alshikh
-- Ava Samimi
