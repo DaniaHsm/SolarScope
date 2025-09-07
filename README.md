@@ -1,4 +1,4 @@
-# COMP 371 Project - SolarScope: Solar System Simulation
+SolarScope: Solar System Simulation
 
 Welcome to SolarScope! An interactive 3D solar system simulation that brings astronomy education to life. This project allows users to explore planetary sizes and orbital mechanics, observe realistic shadow effects between celestial bodies, and experience extreme gravitational phenomena through our black hole simulation. Read the following guide to learn how to navigate and interact with our solar system. 
 
