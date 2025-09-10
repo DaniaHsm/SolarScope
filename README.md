@@ -61,15 +61,11 @@ Welcome to SolarScope! An interactive 3D solar system simulation that brings ast
 - Compare planetary characteristics with detailed info panels
 - Understand gravitational effects through black hole simulation
 
-## Project Requirements Compliance:
-
-### Assignment 1 Requirements
+## Features
 - **Interactive Camera**: Mouse/keyboard controls with rotation and translation relative to facing direction
 - **Multiple Textured Surfaces**: All planets, sun, moon, and comet use unique textures
 - **Hierarchical Animation**: 2+ levels deep - planets orbit sun, moon orbits Earth (orrery system)
 - **Library Compliance**: Uses only OpenGL, GLFW, GLM, GLEW, stb_image.h, Assimp, C++ standard library
-
-### Assignment 2 Requirements 
 - **Dynamic Lighting with Phong Model**: Sun acts as moving light source with realistic Phong lighting
 - **Complex 3D Models**: Duck model loaded via Assimp from GLTF file format
 - **Dynamic Shadows**: Planets cast realistic shadows on each other based on sun position
